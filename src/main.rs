@@ -1,6 +1,7 @@
-use matrix_sdk::ruma::UserId;
+use std::error::Error;
+use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
-use matrix_sdk::{Client, RoomMemberships, config::SyncSettings};
+use matrix_sdk::{Client, RoomMemberships, config::SyncSettings, Room};
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use clap::Parser;
 use url::Url;
@@ -38,8 +39,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Password: {}", opt.password);
     println!("Message: {}", opt.message);
 
-    // Create client using builder pattern
-    let user_id = UserId::parse(&opt.sender_id)?;
+    let user_id = UserId::parse(&opt.sender_id).expect("User ID for recipient should be valid");
+    let recipient_id = UserId::parse(&opt.recipient_id).expect("User ID for recipient should be valid");
+
     let client = Client::builder()
         .server_name(user_id.server_name())
         .build()
@@ -59,10 +61,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Logged in as {}", opt.sender_id);
 
-    let recipient_id = UserId::parse(&opt.recipient_id).expect("Invalid user ID");
-
     // Try to get existing DM room, if it doesn't exist create a new one
-    let room = loop {
+    let room = determine_room(&recipient_id, &client).await?;
+
+    let content = RoomMessageEventContent::text_plain(&opt.message);
+    room.send(content).await?;
+
+    println!("Message sent successfully!");
+
+    client.logout().await?; // Logout after sending the message
+    println!("Logged out");
+
+    Ok(())
+}
+
+async fn determine_room(recipient_id: &OwnedUserId, client: &Client) -> Result<Room, Box<dyn Error>> {
+    Ok(loop {
         match client.get_dm_room(&recipient_id) {
             Some(room) => {
                 let members = room.members(RoomMemberships::ACTIVE).await?;
@@ -82,15 +96,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break room1;
             }
         };
-    };
-
-    let content = RoomMessageEventContent::text_plain(&opt.message);
-    room.send(content).await?;
-
-    println!("Message sent successfully!");
-
-    client.logout().await?; // Logout after sending the message
-    println!("Logged out");
-
-    Ok(())
+    })
 }
