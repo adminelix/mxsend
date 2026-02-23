@@ -2013,6 +2013,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "matrix-send"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "matrix-sdk",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "matrix_indexed_db_futures"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2840,19 +2853,6 @@ dependencies = [
  "hashlink",
  "libsqlite3-sys",
  "smallvec",
-]
-
-[[package]]
-name = "rust_sample"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "matrix-sdk",
- "serde",
- "serde_json",
- "tokio",
- "url",
 ]
 
 [[package]]
