@@ -2,36 +2,35 @@ use matrix_sdk::ruma::UserId;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::{Client, RoomMemberships, config::SyncSettings};
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
-use structopt::StructOpt;
+use clap::Parser;
 use url::Url;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "message_sender")]
-struct Opt {
-    /// Sender ID
-    #[structopt(long = "sender-id")]
+#[derive(Parser, Debug)]
+struct Cli {
+    /// The Matrix user ID of the sender (e.g., @user:example.com)
+    #[clap(long = "sender-id")]
     sender_id: String,
 
-    /// Recipient ID
-    #[structopt(long = "recipient-id")]
+    /// The Matrix user ID of the recipient (e.g., @user:example.com)
+    #[clap(long = "recipient-id")]
     recipient_id: String,
 
-    /// Host URL
-    #[structopt(long = "host")]
+    /// The base URL of the Matrix homeserver (e.g., https://matrix.example.com)
+    #[clap(long = "host", default_value = "https://matrix.org")]
     host: Url,
 
-    /// Password
-    #[structopt(long = "password")]
+    /// The password for the sender's Matrix account
+    #[clap(long = "password")]
     password: String,
 
-    /// Message to send
-    #[structopt(long = "message", default_value = "xyz")]
+    /// The text message to send to the recipient
+    #[clap(long = "message")]
     message: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let opt = Opt::from_args();
+    let opt = Cli::parse();
 
     println!("Sender ID: {}", opt.sender_id);
     println!("Recipient ID: {}", opt.recipient_id);
