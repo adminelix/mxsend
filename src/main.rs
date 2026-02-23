@@ -1,6 +1,7 @@
 use matrix_sdk::ruma::UserId;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::{Client, RoomMemberships, config::SyncSettings};
+use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use structopt::StructOpt;
 use url::Url;
 
@@ -52,7 +53,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .send()
         .await?;
 
-    let sync_settings = SyncSettings::default();
+    let filter = FilterDefinition::with_lazy_loading();
+    let sync_settings = SyncSettings::default().filter(filter.into());
+
     client.sync_once(sync_settings).await?;
 
     println!("Logged in as {}", opt.sender_id);
