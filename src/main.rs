@@ -18,28 +18,43 @@ fn default_data_dir() -> PathBuf {
 }
 
 #[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
 struct Cli {
-    /// The Data Directory to store session, with default in
-    /// Linux: $XDG_DATA_HOME or $HOME/.local/share
-    /// Windows {FOLDERID_RoamingAppData}
-    /// MacOs: $HOME/Library/Application Support
-    #[clap(long = "data-directory", default_value_os_t = default_data_dir())]
+    /// The Data Directory to store session
+    #[arg(
+        long = "data-directory",
+        default_value_os_t = default_data_dir(),
+        short = 'd',
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "DATA_DIR")
+    )]
     data_dir: PathBuf,
 
     /// The Matrix user ID of the sender
-    #[clap(long = "sender-id")]
+    #[arg(
+        long = "sender-id",
+        short = 's',
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "SENDER_ID")
+    )]
     sender_id: String,
 
+    /// The sender's Matrix account password
+    #[arg(
+        long = "sender-password",
+        short = 'p',
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"),
+        "SENDER_PASSWORD")
+    )]
+    sender_password: String,
+
     /// The Matrix user ID of the recipient
-    #[clap(long = "recipient-id")]
+    #[arg(
+        long = "recipient-id",
+        short = 'r',
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "RECIPIENT_ID")
+    )]
     recipient_id: String,
 
-    /// The sender's Matrix account password
-    #[clap(long = "password")]
-    password: String,
-
     /// The message text to send
-    #[clap(long = "message")]
     message: String,
 }
 
@@ -76,11 +91,11 @@ async fn main() -> anyhow::Result<()> {
             }
             Err(_) => {
                 println!("Failed to restore session, attempting to login...");
-                login(&client, &cli.sender_id, &cli.password).await?;
+                login(&client, &cli.sender_id, &cli.sender_password).await?;
             }
         }
     } else {
-        login(&client, &cli.sender_id, &cli.password).await?;
+        login(&client, &cli.sender_id, &cli.sender_password).await?;
     }
 
     let next_sync_token = client.sync_once(sync_settings).await?.next_batch;
