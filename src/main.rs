@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    let session_file_path = foo(&cli.data_dir).await;
+    let session_file_path = determine_session_file_path(&cli.data_dir).await;
 
     if session_file_path.exists() {
         match restore_session(&client, &session_file_path).await {
@@ -174,7 +174,7 @@ async fn write_session(file_path: &PathBuf, session: &FullSession) -> anyhow::Re
     Ok(())
 }
 
-async fn foo(data_dir: &PathBuf) -> PathBuf {
+async fn determine_session_file_path(data_dir: &PathBuf) -> PathBuf {
     let mut clone = data_dir.clone();
     if !clone.ends_with(env!("CARGO_PKG_NAME")) {
         clone.push(env!("CARGO_PKG_NAME"));
