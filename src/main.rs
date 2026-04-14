@@ -6,6 +6,7 @@ use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::{Client, Room, RoomMemberships, config::SyncSettings};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use anyhow::anyhow;
 use tokio::fs;
 
 fn default_data_dir() -> PathBuf {
@@ -71,8 +72,8 @@ struct FullSession {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let user_id = UserId::parse(&cli.sender_id).expect("Valid user ID for sender");
-    let recipient_id = UserId::parse(&cli.recipient_id).expect("Valid user ID for recipient");
+    let user_id = UserId::parse(&cli.sender_id).map_err(|err| {anyhow!("invalid sender_id: {}",err.to_string())})?;
+    let recipient_id = UserId::parse(&cli.recipient_id).map_err(|err| {anyhow!("invalid recipient_id: {}",err.to_string())})?;
 
     let filter = FilterDefinition::with_lazy_loading();
     let mut sync_settings = SyncSettings::default().filter(filter.into());
@@ -103,7 +104,7 @@ async fn main() -> anyhow::Result<()> {
         user_session: client
             .matrix_auth()
             .session()
-            .expect("Logged-in client should have a session"),
+            .ok_or(anyhow!("could not login to server"))?,
         sync_token: next_sync_token,
     };
     write_session(&session_file_path, &session).await?;
