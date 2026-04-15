@@ -1,40 +1,18 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Error};
 use clap::Parser;
-use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::{Client, Room, RoomMemberships, config::SyncSettings};
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use tokio::fs;
-
-fn default_data_dir() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| {
-            eprintln!("Error: Could not determine data directory. Please specify --data-directory");
-            std::process::exit(1);
-        })
-        .join(env!("CARGO_PKG_NAME"))
-}
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// The Data Directory to store session
-    #[arg(
-        long = "data-directory",
-        default_value_os_t = default_data_dir(),
-        short = 'd',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "DATA_DIR")
-    )]
-    data_dir: PathBuf,
-
     /// The Matrix user ID of the sender
     #[arg(
         long = "sender-id",
         short = 's',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "SENDER_ID")
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_SENDER_ID")
     )]
     sender_id: String,
 
@@ -42,8 +20,7 @@ struct Cli {
     #[arg(
         long = "sender-password",
         short = 'p',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"),
-        "SENDER_PASSWORD")
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_SENDER_PASSWORD")
     )]
     sender_password: String,
 
@@ -51,21 +28,12 @@ struct Cli {
     #[arg(
         long = "recipient-id",
         short = 'r',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "RECIPIENT_ID")
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_RECIPIENT_ID")
     )]
     recipient_id: String,
 
     /// The message text to send
     message: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct FullSession {
-    /// The Matrix user session
-    user_session: MatrixSession,
-
-    /// The latest sync token
-    sync_token: String,
 }
 
 #[tokio::main]
@@ -78,43 +46,28 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|err| anyhow!("invalid recipient_id: {}", err.to_string()))?;
 
     let filter = FilterDefinition::with_lazy_loading();
-    let mut sync_settings = SyncSettings::default().filter(filter.into());
+    let sync_settings = SyncSettings::default().filter(filter.into());
 
     let client = Client::builder()
         .server_name(user_id.server_name())
         .build()
         .await?;
 
-    let session_file_path = determine_session_file_path(&cli.data_dir).await;
+    login(&client, &cli.sender_id, &cli.sender_password).await?;
 
-    if session_file_path.exists() {
-        match restore_session(&client, &session_file_path).await {
-            Ok(sync_token) => {
-                sync_settings = sync_settings.token(sync_token);
-            }
-            Err(_) => {
-                println!("Failed to restore session, attempting to login...");
-                login(&client, &cli.sender_id, &cli.sender_password).await?;
-            }
-        }
-    } else {
-        login(&client, &cli.sender_id, &cli.sender_password).await?;
-    }
+    let result = async {
+        client.sync_once(sync_settings).await?;
+        let room = determine_room(&recipient_id, &client).await?;
+        let content = RoomMessageEventContent::text_plain(&cli.message);
+        room.send(content).await?;
+        println!("Message sent successfully!");
+        Ok::<(), Error>(())
+    }.await;
 
-    let next_sync_token = client.sync_once(sync_settings).await?.next_batch;
-    let session = FullSession {
-        user_session: client
-            .matrix_auth()
-            .session()
-            .ok_or(anyhow!("could not login to server"))?,
-        sync_token: next_sync_token,
-    };
-    write_session(&session_file_path, &session).await?;
+    client.logout().await?;
+    println!("Matrix auth logged out successfully");
 
-    let room = determine_room(&recipient_id, &client).await?;
-    let content = RoomMessageEventContent::text_plain(&cli.message);
-    room.send(content).await?;
-    println!("Message sent successfully!");
+    result?;
 
     Ok(())
 }
@@ -150,37 +103,4 @@ async fn determine_room(recipient_id: &OwnedUserId, client: &Client) -> anyhow::
             }
         };
     })
-}
-
-/// Restores a previous session
-async fn restore_session(client: &Client, path: &PathBuf) -> anyhow::Result<String> {
-    let session = read_session(path).await?;
-    client.restore_session(session.user_session).await?;
-    println!("Session restored successfully");
-
-    Ok(session.sync_token)
-}
-
-async fn read_session(file_path: &PathBuf) -> anyhow::Result<FullSession> {
-    let serialized_session = fs::read_to_string(file_path).await?;
-    let session: FullSession = serde_json::from_str(&serialized_session)?;
-    Ok(session)
-}
-
-async fn write_session(file_path: &PathBuf, session: &FullSession) -> anyhow::Result<()> {
-    if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent).await?;
-    }
-
-    let serialized_session = serde_json::to_string_pretty(session)?;
-    fs::write(file_path, serialized_session).await?;
-    Ok(())
-}
-
-async fn determine_session_file_path(data_dir: &PathBuf) -> PathBuf {
-    let mut clone = data_dir.clone();
-    if !clone.ends_with(env!("CARGO_PKG_NAME")) {
-        clone.push(env!("CARGO_PKG_NAME"));
-    }
-    clone.join("session.json")
 }
