@@ -2,7 +2,7 @@
 name = "matrix-send"
 version = "0.1.0"
 edition = "2024"
-description = "todo: write description"
+description = "A command-line tool for sending messages via Matrix"
 
 [dependencies]
 matrix-sdk = { version = "0.16.0", features = ["e2e-encryption"] }
