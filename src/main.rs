@@ -32,6 +32,14 @@ struct Cli {
     )]
     recipient_id: String,
 
+    /// The recovery key for session verification
+    #[arg(
+        long = "recovery-key",
+        short = 'k',
+        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_RECOVERY_KEY")
+    )]
+    recovery_key: Option<String>,
+
     /// The message text to send
     message: String,
 }
@@ -54,6 +62,10 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     login(&client, &cli.sender_id, &cli.sender_password).await?;
+
+    if let Some(recovery_key) = &cli.recovery_key {
+        verify_session(&client, recovery_key).await?;
+    }
 
     let result = async {
         client.sync_once(sync_settings).await?;
@@ -78,6 +90,13 @@ async fn login(client: &Client, sender_id: &str, password: &str) -> anyhow::Resu
         .login_username(sender_id, password)
         .send()
         .await?;
+    Ok(())
+}
+
+async fn verify_session(client: &Client, recovery_key: &str) -> anyhow::Result<()> {
+    let recovery = client.encryption().recovery();
+    recovery.recover(recovery_key).await?;
+    println!("Successfully verified session using recovery key");
     Ok(())
 }
 
