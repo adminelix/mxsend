@@ -31,15 +31,15 @@ mod tests {
 
     /// Creates a test user and returns their user ID and client.
     async fn create_test_user(ctx: &TestContext, name: &str) -> (String, matrix_sdk::Client) {
-        let user_id = ctx.add_user(name, DEFAULT_PASSWORD, true).await;
-        let parsed = UserId::parse(&user_id).expect("valid user id");
-        let client = matrix_send::build_client(&parsed, Some(&ctx.homeserver_url()))
+        let user_id_str = ctx.add_user(name, DEFAULT_PASSWORD, true).await;
+        let user_id = UserId::parse(&user_id_str).expect("valid user id");
+        let client = matrix_send::build_client(&user_id, Some(&ctx.homeserver_url()))
             .await
             .expect("Failed to build client");
-        (user_id, client)
+        (user_id_str, client)
     }
 
-    /// Logs in the client with the given credentials.
+    /// Logs in the client with the given credentialguard.
     async fn login(client: &matrix_sdk::Client, user_id: &str, password: &str) {
         client
             .matrix_auth()
@@ -49,32 +49,32 @@ mod tests {
             .expect("Login failed");
     }
 
-    /// Sets up event handlers for the receiver to capture invites and messages.
+    /// Sets up event handlers for the receiver to capture invites and messageguard.
     ///
     /// Automatically accepts invites and stores message details in the shared state.
     fn setup_receiver_handlers(client: &matrix_sdk::Client, state: &Arc<RwLock<ReceiverState>>) {
         // Handle room invites - automatically join
-        let state_invite = state.clone();
+        let invite_state = state.clone();
         client.add_event_handler(move |ev: StrippedRoomMemberEvent, room: Room| {
-            let state = state_invite.clone();
+            let state = invite_state.clone();
             async move {
                 if ev.content.membership.as_str() == "invite" {
                     println!("[Receiver] Received invite in room {:?}", room.room_id());
                     let _ = room.join().await;
-                    let mut s = state.write().await;
-                    s.invite_received = true;
-                    s.room_id = Some(room.room_id().to_owned());
+                    let mut guard = state.write().await;
+                    guard.invite_received = true;
+                    guard.room_id = Some(room.room_id().to_owned());
                 }
             }
         });
 
         // Handle room messages - extract body and verification info
-        let state_msg = state.clone();
+        let message_state = state.clone();
         client.add_event_handler(
             move |ev: SyncRoomMessageEvent,
                   _room: Room,
                   encryption_info: Option<EncryptionInfo>| {
-                let state = state_msg.clone();
+                let state = message_state.clone();
                 async move {
                     if let SyncRoomMessageEvent::Original(original) = ev
                         && let matrix_sdk::ruma::events::room::message::MessageType::Text(
@@ -83,18 +83,18 @@ mod tests {
                     {
                         println!("[Receiver] Received message: {body}");
                         println!("[Receiver] Encryption info: {:?}", encryption_info);
-                        let mut s = state.write().await;
-                        s.message_received = true;
-                        s.message_body = Some(body);
+                        let mut guard = state.write().await;
+                        guard.message_received = true;
+                        guard.message_body = Some(body);
                         // Track if message was from a verified device
-                        s.message_verified = encryption_info
+                        guard.message_verified = encryption_info
                             .as_ref()
                             .map(|info| {
                                 matches!(info.verification_state, VerificationState::Verified)
                             })
                             .unwrap_or(false);
                         // Extract verification level for assertions
-                        s.verification_level = encryption_info.map(|info| match info.verification_state {
+                        guard.verification_level = encryption_info.map(|info| match info.verification_state {
                             VerificationState::Verified => matrix_sdk::deserialized_responses::VerificationLevel::UnverifiedIdentity,
                             VerificationState::Unverified(level) => level,
                         });
@@ -108,18 +108,18 @@ mod tests {
     async fn wait_for_message(state: &Arc<RwLock<ReceiverState>>, require_verified: bool) {
         let deadline = tokio::time::Instant::now() + TIMEOUT;
         while tokio::time::Instant::now() < deadline {
-            let s = state.read().await;
-            if s.message_received && (!require_verified || s.message_verified) {
+            let guard = state.read().await;
+            if guard.message_received && (!require_verified || guard.message_verified) {
                 return;
             }
-            drop(s);
+            drop(guard);
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
 
     /// Creates a sender with cross-signing and recovery enabled.
     ///
-    /// This is required for end-to-end encryption verification tests.
+    /// This is required for end-to-end encryption verification testguard.
     /// Returns the user ID and recovery key.
     async fn bootstrap_sender_with_recovery(ctx: &TestContext) -> (String, String) {
         let sender_id = ctx
@@ -164,16 +164,16 @@ mod tests {
         let _ = env_logger::try_init();
         let ctx = get_shared_context().await;
 
-        let (sender_id, _) = create_test_user(&ctx, "sender").await;
-        let (recipient_id, _) = create_test_user(&ctx, "recipient").await;
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
 
-        let recipient_parsed = UserId::parse(&recipient_id).expect("valid user id");
-        let sender_parsed = UserId::parse(&sender_id).expect("valid user id");
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+        let sender_id = UserId::parse(&sender_id_str).expect("valid user id");
 
         let opts = matrix_send::SendOptions {
-            from: sender_parsed,
+            from: sender_id,
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(recipient_parsed),
+            to: Recipient::User(recipient_id),
             recovery_key: None,
             message: "Integration test message".to_string(),
         };
@@ -191,9 +191,9 @@ mod tests {
         let ctx = get_shared_context().await;
 
         // Create sender and receiver
-        let (sender_id, _) = create_test_user(&ctx, "sender").await;
-        let (receiver_id, receiver_client) = create_test_user(&ctx, "receiver").await;
-        login(&receiver_client, &receiver_id, DEFAULT_PASSWORD).await;
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id_str, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id_str, DEFAULT_PASSWORD).await;
 
         // Setup receiver to listen for events
         let state = Arc::new(RwLock::new(ReceiverState::default()));
@@ -201,11 +201,11 @@ mod tests {
         let mut sync_thread = SyncThread::start(receiver_client.clone());
 
         // Send message from sender
-        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
+        let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
         let opts = matrix_send::SendOptions {
-            from: UserId::parse(&sender_id).expect("valid sender id"),
+            from: UserId::parse(&sender_id_str).expect("valid sender id"),
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(receiver_parsed),
+            to: Recipient::User(receiver_id),
             recovery_key: None,
             message: "Test message from sender to receiver".to_string(),
         };
@@ -255,11 +255,11 @@ mod tests {
         let ctx = get_shared_context().await;
 
         // Step 1: Create sender with cross-signing and recovery enabled
-        let (sender_id, recovery_key) = bootstrap_sender_with_recovery(&ctx).await;
+        let (sender_id_str, recovery_key) = bootstrap_sender_with_recovery(&ctx).await;
 
         // Step 2: Create receiver
-        let (receiver_id, receiver_client) = create_test_user(&ctx, "receiver").await;
-        login(&receiver_client, &receiver_id, DEFAULT_PASSWORD).await;
+        let (receiver_id_str, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id_str, DEFAULT_PASSWORD).await;
 
         // Step 3: Setup receiver handlers and wait for invite
         let state = Arc::new(RwLock::new(ReceiverState::default()));
@@ -269,23 +269,23 @@ mod tests {
         let mut sync_thread = SyncThread::start(receiver_client.clone());
         let deadline = tokio::time::Instant::now() + TIMEOUT;
         while tokio::time::Instant::now() < deadline {
-            let s = state.read().await;
-            if s.invite_received {
-                drop(s);
+            let guard = state.read().await;
+            if guard.invite_received {
+                drop(guard);
                 break;
             }
-            drop(s);
+            drop(guard);
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
         sync_thread.stop();
 
         // Step 4: Send message with recovery key (enables verification)
-        let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
-        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
         let opts = matrix_send::SendOptions {
-            from: sender_parsed,
+            from: sender_id,
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(receiver_parsed),
+            to: Recipient::User(receiver_id),
             recovery_key: Some(recovery_key),
             message: "Verified test message".to_string(),
         };
@@ -296,10 +296,10 @@ mod tests {
             .expect("Failed to execute main logic");
 
         // Step 5: Force receiver to fetch sender's updated device keys before syncing
-        let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
         receiver_client
             .encryption()
-            .request_user_identity(&sender_parsed)
+            .request_user_identity(&sender_id)
             .await
             .expect("Failed to request sender identity");
 
@@ -342,22 +342,22 @@ mod tests {
         let _ = env_logger::try_init();
         let ctx = get_shared_context().await;
 
-        let (sender_id, _) = create_test_user(&ctx, "sender").await;
-        let (receiver_id, receiver_client) = create_test_user(&ctx, "receiver").await;
-        login(&receiver_client, &receiver_id, DEFAULT_PASSWORD).await;
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id_str, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id_str, DEFAULT_PASSWORD).await;
 
         let state = Arc::new(RwLock::new(ReceiverState::default()));
         setup_receiver_handlers(&receiver_client, &state);
         let mut sync_thread = SyncThread::start(receiver_client.clone());
 
-        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
-        let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
+        let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
 
         // First send — creates the DM room
         let opts = matrix_send::SendOptions {
-            from: sender_parsed.clone(),
+            from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(receiver_parsed.clone()),
+            to: Recipient::User(receiver_id.clone()),
             recovery_key: None,
             message: "First message".to_string(),
         };
@@ -372,16 +372,16 @@ mod tests {
 
         // Reset receiver state for second message
         {
-            let mut s = state.write().await;
-            s.message_received = false;
-            s.message_body = None;
+            let mut guard = state.write().await;
+            guard.message_received = false;
+            guard.message_body = None;
         }
 
         // Second send — must reuse the existing DM room
         let opts = matrix_send::SendOptions {
-            from: sender_parsed.clone(),
+            from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(receiver_parsed),
+            to: Recipient::User(receiver_id),
             recovery_key: None,
             message: "Second message".to_string(),
         };
@@ -395,22 +395,22 @@ mod tests {
         sync_thread.stop();
 
         // Receiver should have received both messages in the same room
-        let s = state.read().await;
+        let guard = state.read().await;
         assert!(
-            s.message_received,
+            guard.message_received,
             "Receiver should have received the second message"
         );
         assert_eq!(
-            s.message_body.as_deref(),
+            guard.message_body.as_deref(),
             Some("Second message"),
             "Second message content should match"
         );
-        let second_room_id = s.room_id.clone().unwrap();
+        let second_room_id = guard.room_id.clone().unwrap();
         assert_eq!(
             first_room_id, second_room_id,
             "Second send must reuse the same room"
         );
-        drop(s);
+        drop(guard);
 
         // Verify receiver has exactly one joined room (room was reused, not duplicated)
         let receiver_joined = receiver_client.joined_rooms();
@@ -429,22 +429,22 @@ mod tests {
         let _ = env_logger::try_init();
         let ctx = get_shared_context().await;
 
-        let (sender_id, _) = create_test_user(&ctx, "sender").await;
-        let (receiver_id, receiver_client) = create_test_user(&ctx, "receiver").await;
-        login(&receiver_client, &receiver_id, DEFAULT_PASSWORD).await;
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id_str, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id_str, DEFAULT_PASSWORD).await;
 
         let state = Arc::new(RwLock::new(ReceiverState::default()));
         setup_receiver_handlers(&receiver_client, &state);
         let mut sync_thread = SyncThread::start(receiver_client.clone());
 
-        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
-        let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
+        let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
 
         // First send — creates the DM room
         let opts = matrix_send::SendOptions {
-            from: sender_parsed.clone(),
+            from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(receiver_parsed.clone()),
+            to: Recipient::User(receiver_id.clone()),
             recovery_key: None,
             message: "Message in first room".to_string(),
         };
@@ -466,18 +466,18 @@ mod tests {
 
         // Reset receiver state for the second send
         {
-            let mut s = state.write().await;
-            s.invite_received = false;
-            s.message_received = false;
-            s.message_body = None;
-            s.room_id = None;
+            let mut guard = state.write().await;
+            guard.invite_received = false;
+            guard.message_received = false;
+            guard.message_body = None;
+            guard.room_id = None;
         }
 
         // Second send — must create a new DM room after cleaning up the stale one
         let opts = matrix_send::SendOptions {
-            from: sender_parsed.clone(),
+            from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
-            to: Recipient::User(receiver_parsed),
+            to: Recipient::User(receiver_id),
             recovery_key: None,
             message: "Message in second room".to_string(),
         };
@@ -491,26 +491,26 @@ mod tests {
         sync_thread.stop();
 
         // Receiver should have received the message in a new room
-        let s = state.read().await;
+        let guard = state.read().await;
         assert!(
-            s.invite_received,
+            guard.invite_received,
             "Receiver should have been invited to a new room"
         );
         assert!(
-            s.message_received,
+            guard.message_received,
             "Receiver should have received the second message"
         );
         assert_eq!(
-            s.message_body.as_deref(),
+            guard.message_body.as_deref(),
             Some("Message in second room"),
             "Second message content should match"
         );
-        let second_room_id = s.room_id.clone().unwrap();
+        let second_room_id = guard.room_id.clone().unwrap();
         assert_ne!(
             first_room_id, second_room_id,
             "A new room must be created after the recipient left"
         );
-        drop(s);
+        drop(guard);
 
         // Verify receiver has exactly one joined room (the new room, old one was left)
         let receiver_joined = receiver_client.joined_rooms();

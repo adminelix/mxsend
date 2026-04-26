@@ -99,7 +99,7 @@ pub async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room
 }
 
 /// Convenience wrapper that builds a sender from [`SendOptions`] and sends the message.
-pub async fn execute_main_logic(opts: SendOptions) -> Result<()> {
+pub async fn run_send_pipeline(opts: SendOptions) -> Result<()> {
     MessageSender::new(opts).send().await
 }
 
@@ -161,7 +161,7 @@ impl MessageSender {
             verify_session(&client, recovery_key).await?;
         }
 
-        let result = send_to(&client, &self.message, &self.to).await;
+        let result = send_to_recipient(&client, &self.message, &self.to).await;
 
         client.logout().await?;
         println!("Matrix auth logged out successfully");
@@ -186,7 +186,7 @@ async fn verify_session(client: &Client, recovery_key: &str) -> Result<()> {
     Ok(())
 }
 
-async fn send_to(client: &Client, message: &str, recipient: &Recipient) -> Result<()> {
+async fn send_to_recipient(client: &Client, message: &str, recipient: &Recipient) -> Result<()> {
     let room = resolve_room(client, recipient).await?;
     let content = RoomMessageEventContent::text_plain(message);
     room.send(content).await?;
@@ -200,20 +200,16 @@ async fn send_to(client: &Client, message: &str, recipient: &Recipient) -> Resul
 /// recipient left a previous DM, that stale room is cleaned up. Only creates
 /// a new room if no valid DM exists.
 async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room> {
-    let mut valid_room: Option<Room> = None;
+    let mut candidate_room: Option<Room> = None;
 
     for room in client.joined_rooms() {
-        if room.joined_members_count() != 2 {
-            continue;
-        }
-
         let members = room.members(RoomMemberships::ACTIVE).await?;
-        let has_recipient = members.iter().any(|m| m.user_id() == user_id);
+        let recipient_is_member = members.iter().any(|m| m.user_id() == user_id);
 
-        if has_recipient && members.len() == 2 {
-            match valid_room {
+        if recipient_is_member && members.len() == 2 {
+            match candidate_room {
                 None => {
-                    valid_room = Some(room);
+                    candidate_room = Some(room);
                 }
                 Some(_) => {
                     room.leave().await?;
@@ -221,14 +217,14 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
                     println!("Cleaned up duplicate DM room");
                 }
             }
-        } else if !has_recipient && members.len() == 1 {
+        } else if !recipient_is_member && members.len() == 1 {
             room.leave().await?;
             room.forget().await?;
             println!("Cleaned up stale DM room (recipient left)");
         }
     }
 
-    if let Some(room) = valid_room {
+    if let Some(room) = candidate_room {
         return Ok(room);
     }
 
