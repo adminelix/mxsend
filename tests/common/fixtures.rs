@@ -22,6 +22,7 @@ struct CreateUserRequest {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct TestContext {
     container: Arc<ContainerAsync<SynapseImage>>,
     port: u16,

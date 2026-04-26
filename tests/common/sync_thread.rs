@@ -5,6 +5,7 @@ use std::time::Duration;
 /// Matrix clients need to continuously sync to receive events. This helper
 /// spawns a sync loop on a dedicated thread so tests can run sender logic
 /// on the main async runtime while the receiver listens in the background.
+#[derive(Debug)]
 pub struct SyncThread {
     handle: Option<std::thread::JoinHandle<()>>,
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,

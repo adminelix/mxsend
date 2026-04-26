@@ -174,12 +174,12 @@ mod tests {
         let cli = matrix_send::Cli {
             sender_id: sender_parsed,
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id,
+            recipient_id: recipient_parsed,
             recovery_key: None,
             message: "Integration test message".to_string(),
         };
 
-        matrix_send::execute_main_logic(cli, recipient_parsed)
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("Failed to execute main logic");
     }
@@ -202,14 +202,14 @@ mod tests {
         // Send message from sender
         let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
         let cli = matrix_send::Cli {
-            sender_id: UserId::parse(&sender_id).unwrap(),
+            sender_id: UserId::parse(&sender_id).expect("valid user id"),
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_id,
+            recipient_id: receiver_parsed,
             recovery_key: None,
             message: "Test message from sender to receiver".to_string(),
         };
 
-        matrix_send::execute_main_logic(cli, receiver_parsed)
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("Failed to execute main logic");
 
@@ -278,15 +278,15 @@ mod tests {
 
         // Step 4: Send message with recovery key (enables verification)
         let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
+        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
         let cli = matrix_send::Cli {
             sender_id: sender_parsed,
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_id.clone(),
+            recipient_id: receiver_parsed,
             recovery_key: Some(recovery_key),
             message: "Verified test message".to_string(),
         };
-        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
-        matrix_send::execute_main_logic(cli, receiver_parsed)
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("Failed to execute main logic");
 
@@ -352,11 +352,11 @@ mod tests {
         let cli = matrix_send::Cli {
             sender_id: sender_parsed.clone(),
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_id.clone(),
+            recipient_id: receiver_parsed.clone(),
             recovery_key: None,
             message: "First message".to_string(),
         };
-        matrix_send::execute_main_logic(cli, receiver_parsed.clone())
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("First send failed");
 
@@ -374,11 +374,11 @@ mod tests {
         let cli = matrix_send::Cli {
             sender_id: sender_parsed.clone(),
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_id.clone(),
+            recipient_id: receiver_parsed,
             recovery_key: None,
             message: "Second message".to_string(),
         };
-        matrix_send::execute_main_logic(cli, receiver_parsed)
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("Second send failed");
 
@@ -435,11 +435,11 @@ mod tests {
         let cli = matrix_send::Cli {
             sender_id: sender_parsed.clone(),
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_id.clone(),
+            recipient_id: receiver_parsed.clone(),
             recovery_key: None,
             message: "Message in first room".to_string(),
         };
-        matrix_send::execute_main_logic(cli, receiver_parsed.clone())
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("First send failed");
 
@@ -466,11 +466,11 @@ mod tests {
         let cli = matrix_send::Cli {
             sender_id: sender_parsed.clone(),
             sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_id.clone(),
+            recipient_id: receiver_parsed,
             recovery_key: None,
             message: "Message in second room".to_string(),
         };
-        matrix_send::execute_main_logic(cli, receiver_parsed)
+        matrix_send::execute_main_logic(cli)
             .await
             .expect("Second send failed");
 
