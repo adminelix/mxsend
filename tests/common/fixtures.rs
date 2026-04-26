@@ -21,15 +21,14 @@ struct CreateUserRequest {
     admin: bool,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TestContext {
+    #[allow(dead_code)] // kept alive to prevent container drop
     container: Arc<ContainerAsync<SynapseImage>>,
     port: u16,
     admin_token: String,
 }
 
-#[allow(dead_code)]
 impl TestContext {
     pub async fn add_user(&self, base: &str, password: &str, admin: bool) -> String {
         let username = unique_name(base);
@@ -42,6 +41,7 @@ impl TestContext {
         format!("http://localhost:{}", self.port)
     }
 
+    #[allow(dead_code)]
     pub fn port(&self) -> u16 {
         self.port
     }
@@ -78,13 +78,6 @@ async fn create_context() -> Arc<TestContext> {
         .get_host_port_ipv4(8008)
         .await
         .expect("Failed to get port");
-
-    let homeserver_url = format!("http://localhost:{port}");
-    // SAFETY: called once during test setup, no concurrent threads access env vars
-    #[allow(unsafe_code)]
-    unsafe {
-        std::env::set_var("TEST_HOMESERVER_URL", &homeserver_url);
-    }
 
     let admin_token = get_admin_access_token(port)
         .await

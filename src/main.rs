@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use matrix_send::Cli;
+use matrix_send::{MessageSender, SendOptions};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
-    matrix_send::execute_main_logic(cli).await
+    let opts = SendOptions::parse();
+    MessageSender::new(opts).send().await
 }

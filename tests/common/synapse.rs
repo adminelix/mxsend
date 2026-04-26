@@ -8,14 +8,12 @@ const DEFAULT_IMAGE_TAG: &str = "latest";
 pub const SYNAPSE_PORT: ContainerPort = ContainerPort::Tcp(8008);
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct SynapseImage {
     env_vars: BTreeMap<String, String>,
     admin_user: String,
     admin_pass: String,
 }
 
-#[allow(dead_code)]
 impl SynapseImage {
     pub fn admin_user(&self) -> &str {
         &self.admin_user
@@ -32,6 +30,7 @@ impl SynapseImage {
             .unwrap_or("localhost")
     }
 
+    #[allow(dead_code)]
     pub fn with_server_name(mut self, server_name: &str) -> Self {
         self.env_vars
             .insert("SYNAPSE_SERVER_NAME".to_string(), server_name.to_string());

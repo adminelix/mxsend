@@ -10,6 +10,7 @@ mod tests {
     use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
     use matrix_sdk::ruma::events::room::message::{SyncRoomMessageEvent, TextMessageEventContent};
     use matrix_sdk::ruma::{OwnedRoomId, UserId};
+    use matrix_send::Recipient;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::sync::RwLock;
@@ -32,7 +33,7 @@ mod tests {
     async fn create_test_user(ctx: &TestContext, name: &str) -> (String, matrix_sdk::Client) {
         let user_id = ctx.add_user(name, DEFAULT_PASSWORD, true).await;
         let parsed = UserId::parse(&user_id).expect("valid user id");
-        let client = matrix_send::build_client(&parsed)
+        let client = matrix_send::build_client(&parsed, Some(&ctx.homeserver_url()))
             .await
             .expect("Failed to build client");
         (user_id, client)
@@ -75,29 +76,28 @@ mod tests {
                   encryption_info: Option<EncryptionInfo>| {
                 let state = state_msg.clone();
                 async move {
-                    if let SyncRoomMessageEvent::Original(original) = ev {
-                        if let matrix_sdk::ruma::events::room::message::MessageType::Text(
+                    if let SyncRoomMessageEvent::Original(original) = ev
+                        && let matrix_sdk::ruma::events::room::message::MessageType::Text(
                             TextMessageEventContent { body, .. },
                         ) = original.content.msgtype
-                        {
-                            println!("[Receiver] Received message: {body}");
-                            println!("[Receiver] Encryption info: {:?}", encryption_info);
-                            let mut s = state.write().await;
-                            s.message_received = true;
-                            s.message_body = Some(body);
-                            // Track if message was from a verified device
-                            s.message_verified = encryption_info
-                                .as_ref()
-                                .map(|info| {
-                                    matches!(info.verification_state, VerificationState::Verified)
-                                })
-                                .unwrap_or(false);
-                            // Extract verification level for assertions
-                            s.verification_level = encryption_info.map(|info| match info.verification_state {
-                                VerificationState::Verified => matrix_sdk::deserialized_responses::VerificationLevel::UnverifiedIdentity,
-                                VerificationState::Unverified(level) => level,
-                            });
-                        }
+                    {
+                        println!("[Receiver] Received message: {body}");
+                        println!("[Receiver] Encryption info: {:?}", encryption_info);
+                        let mut s = state.write().await;
+                        s.message_received = true;
+                        s.message_body = Some(body);
+                        // Track if message was from a verified device
+                        s.message_verified = encryption_info
+                            .as_ref()
+                            .map(|info| {
+                                matches!(info.verification_state, VerificationState::Verified)
+                            })
+                            .unwrap_or(false);
+                        // Extract verification level for assertions
+                        s.verification_level = encryption_info.map(|info| match info.verification_state {
+                            VerificationState::Verified => matrix_sdk::deserialized_responses::VerificationLevel::UnverifiedIdentity,
+                            VerificationState::Unverified(level) => level,
+                        });
                     }
                 }
             },
@@ -127,8 +127,7 @@ mod tests {
             .await;
 
         // Build client with encryption enabled
-        let homeserver_url =
-            std::env::var("TEST_HOMESERVER_URL").expect("TEST_HOMESERVER_URL must be set");
+        let homeserver_url = ctx.homeserver_url();
         let sender_client = matrix_sdk::Client::builder()
             .homeserver_url(&homeserver_url)
             .with_encryption_settings(EncryptionSettings {
@@ -171,15 +170,17 @@ mod tests {
         let recipient_parsed = UserId::parse(&recipient_id).expect("valid user id");
         let sender_parsed = UserId::parse(&sender_id).expect("valid user id");
 
-        let cli = matrix_send::Cli {
-            sender_id: sender_parsed,
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: recipient_parsed,
+        let opts = matrix_send::SendOptions {
+            from: sender_parsed,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_parsed),
             recovery_key: None,
             message: "Integration test message".to_string(),
         };
 
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("Failed to execute main logic");
     }
@@ -201,15 +202,17 @@ mod tests {
 
         // Send message from sender
         let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
-        let cli = matrix_send::Cli {
-            sender_id: UserId::parse(&sender_id).expect("valid user id"),
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_parsed,
+        let opts = matrix_send::SendOptions {
+            from: UserId::parse(&sender_id).expect("valid sender id"),
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_parsed),
             recovery_key: None,
             message: "Test message from sender to receiver".to_string(),
         };
 
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("Failed to execute main logic");
 
@@ -279,14 +282,16 @@ mod tests {
         // Step 4: Send message with recovery key (enables verification)
         let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
         let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
-        let cli = matrix_send::Cli {
-            sender_id: sender_parsed,
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_parsed,
+        let opts = matrix_send::SendOptions {
+            from: sender_parsed,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_parsed),
             recovery_key: Some(recovery_key),
             message: "Verified test message".to_string(),
         };
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("Failed to execute main logic");
 
@@ -349,14 +354,16 @@ mod tests {
         let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
 
         // First send — creates the DM room
-        let cli = matrix_send::Cli {
-            sender_id: sender_parsed.clone(),
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_parsed.clone(),
+        let opts = matrix_send::SendOptions {
+            from: sender_parsed.clone(),
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_parsed.clone()),
             recovery_key: None,
             message: "First message".to_string(),
         };
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("First send failed");
 
@@ -371,14 +378,16 @@ mod tests {
         }
 
         // Second send — must reuse the existing DM room
-        let cli = matrix_send::Cli {
-            sender_id: sender_parsed.clone(),
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_parsed,
+        let opts = matrix_send::SendOptions {
+            from: sender_parsed.clone(),
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_parsed),
             recovery_key: None,
             message: "Second message".to_string(),
         };
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("Second send failed");
 
@@ -432,14 +441,16 @@ mod tests {
         let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
 
         // First send — creates the DM room
-        let cli = matrix_send::Cli {
-            sender_id: sender_parsed.clone(),
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_parsed.clone(),
+        let opts = matrix_send::SendOptions {
+            from: sender_parsed.clone(),
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_parsed.clone()),
             recovery_key: None,
             message: "Message in first room".to_string(),
         };
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("First send failed");
 
@@ -463,14 +474,16 @@ mod tests {
         }
 
         // Second send — must create a new DM room after cleaning up the stale one
-        let cli = matrix_send::Cli {
-            sender_id: sender_parsed.clone(),
-            sender_password: DEFAULT_PASSWORD.to_string(),
-            recipient_id: receiver_parsed,
+        let opts = matrix_send::SendOptions {
+            from: sender_parsed.clone(),
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_parsed),
             recovery_key: None,
             message: "Message in second room".to_string(),
         };
-        matrix_send::execute_main_logic(cli)
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
             .await
             .expect("Second send failed");
 
