@@ -331,4 +331,190 @@ mod tests {
 
         receiver_client.logout().await.ok();
     }
+
+    #[tokio::test]
+    async fn test_dm_room_reused_on_second_send() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id, DEFAULT_PASSWORD).await;
+
+        let state = Arc::new(RwLock::new(ReceiverState::default()));
+        setup_receiver_handlers(&receiver_client, &state);
+        let mut sync_thread = SyncThread::start(receiver_client.clone());
+
+        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
+        let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
+
+        // First send — creates the DM room
+        let cli = matrix_send::Cli {
+            sender_id: sender_parsed.clone(),
+            sender_password: DEFAULT_PASSWORD.to_string(),
+            recipient_id: receiver_id.clone(),
+            recovery_key: None,
+            message: "First message".to_string(),
+        };
+        matrix_send::execute_main_logic(cli, receiver_parsed.clone())
+            .await
+            .expect("First send failed");
+
+        wait_for_message(&state, false).await;
+        let first_room_id = state.read().await.room_id.clone().unwrap();
+
+        // Reset receiver state for second message
+        {
+            let mut s = state.write().await;
+            s.message_received = false;
+            s.message_body = None;
+        }
+
+        // Second send — must reuse the existing DM room
+        let cli = matrix_send::Cli {
+            sender_id: sender_parsed.clone(),
+            sender_password: DEFAULT_PASSWORD.to_string(),
+            recipient_id: receiver_id.clone(),
+            recovery_key: None,
+            message: "Second message".to_string(),
+        };
+        matrix_send::execute_main_logic(cli, receiver_parsed)
+            .await
+            .expect("Second send failed");
+
+        wait_for_message(&state, false).await;
+        sync_thread.stop();
+
+        // Receiver should have received both messages in the same room
+        let s = state.read().await;
+        assert!(
+            s.message_received,
+            "Receiver should have received the second message"
+        );
+        assert_eq!(
+            s.message_body.as_deref(),
+            Some("Second message"),
+            "Second message content should match"
+        );
+        let second_room_id = s.room_id.clone().unwrap();
+        assert_eq!(
+            first_room_id, second_room_id,
+            "Second send must reuse the same room"
+        );
+        drop(s);
+
+        // Verify receiver has exactly one joined room (room was reused, not duplicated)
+        let receiver_joined = receiver_client.joined_rooms();
+        assert_eq!(
+            receiver_joined.len(),
+            1,
+            "Receiver should have exactly 1 joined room, found {}",
+            receiver_joined.len()
+        );
+
+        receiver_client.logout().await.ok();
+    }
+
+    #[tokio::test]
+    async fn test_dm_room_recreated_after_recipient_leaves() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id, DEFAULT_PASSWORD).await;
+
+        let state = Arc::new(RwLock::new(ReceiverState::default()));
+        setup_receiver_handlers(&receiver_client, &state);
+        let mut sync_thread = SyncThread::start(receiver_client.clone());
+
+        let receiver_parsed = UserId::parse(&receiver_id).expect("valid user id");
+        let sender_parsed = UserId::parse(&sender_id).expect("valid sender id");
+
+        // First send — creates the DM room
+        let cli = matrix_send::Cli {
+            sender_id: sender_parsed.clone(),
+            sender_password: DEFAULT_PASSWORD.to_string(),
+            recipient_id: receiver_id.clone(),
+            recovery_key: None,
+            message: "Message in first room".to_string(),
+        };
+        matrix_send::execute_main_logic(cli, receiver_parsed.clone())
+            .await
+            .expect("First send failed");
+
+        wait_for_message(&state, false).await;
+        let first_room_id = state.read().await.room_id.clone().unwrap();
+
+        // Receiver leaves the room
+        let room = receiver_client
+            .get_room(&first_room_id)
+            .expect("Receiver should know the room");
+        room.leave().await.expect("Receiver failed to leave room");
+        room.forget().await.expect("Receiver failed to forget room");
+
+        // Reset receiver state for the second send
+        {
+            let mut s = state.write().await;
+            s.invite_received = false;
+            s.message_received = false;
+            s.message_body = None;
+            s.room_id = None;
+        }
+
+        // Second send — must create a new DM room after cleaning up the stale one
+        let cli = matrix_send::Cli {
+            sender_id: sender_parsed.clone(),
+            sender_password: DEFAULT_PASSWORD.to_string(),
+            recipient_id: receiver_id.clone(),
+            recovery_key: None,
+            message: "Message in second room".to_string(),
+        };
+        matrix_send::execute_main_logic(cli, receiver_parsed)
+            .await
+            .expect("Second send failed");
+
+        wait_for_message(&state, false).await;
+        sync_thread.stop();
+
+        // Receiver should have received the message in a new room
+        let s = state.read().await;
+        assert!(
+            s.invite_received,
+            "Receiver should have been invited to a new room"
+        );
+        assert!(
+            s.message_received,
+            "Receiver should have received the second message"
+        );
+        assert_eq!(
+            s.message_body.as_deref(),
+            Some("Message in second room"),
+            "Second message content should match"
+        );
+        let second_room_id = s.room_id.clone().unwrap();
+        assert_ne!(
+            first_room_id, second_room_id,
+            "A new room must be created after the recipient left"
+        );
+        drop(s);
+
+        // Verify receiver has exactly one joined room (the new room, old one was left)
+        let receiver_joined = receiver_client.joined_rooms();
+        assert_eq!(
+            receiver_joined.len(),
+            1,
+            "Receiver should have exactly 1 joined room, found {}",
+            receiver_joined.len()
+        );
+
+        // The new room should be different from the first room
+        let new_room_id = receiver_joined[0].room_id().to_owned();
+        assert_ne!(
+            first_room_id, new_room_id,
+            "Receiver should be in a new room, not the old one"
+        );
+
+        receiver_client.logout().await.ok();
+    }
 }

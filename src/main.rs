@@ -128,27 +128,45 @@ async fn send_message(client: &Client, message: &str, recipient_id: &OwnedUserId
     Ok(())
 }
 
-/// Determine which room to use for communication (existing DM or create new one)
+/// Determine which room to use for communication with the recipient.
+///
+/// Scans all joined rooms to find an existing DM with the recipient. If the
+/// recipient left a previous DM, that stale room is cleaned up. Only creates
+/// a new room if no valid DM exists.
 async fn determine_room(client: &Client, recipient_id: &OwnedUserId) -> Result<Room> {
-    loop {
-        match client.get_dm_room(recipient_id) {
-            Some(room) => {
-                let members = room.members(RoomMemberships::ACTIVE).await?;
-                if members.len() > 1 {
-                    println!("Using existing DM room");
-                    return Ok(room);
-                } else {
+    let mut valid_room: Option<Room> = None;
+
+    for room in client.joined_rooms() {
+        if room.joined_members_count() != 2 {
+            continue;
+        }
+
+        let members = room.members(RoomMemberships::ACTIVE).await?;
+        let has_recipient = members.iter().any(|m| m.user_id() == recipient_id);
+
+        if has_recipient && members.len() == 2 {
+            match valid_room {
+                None => {
+                    valid_room = Some(room);
+                }
+                Some(_) => {
                     room.leave().await?;
                     room.forget().await?;
-                    println!("Existing room has only one member, leaving and forgetting...");
-                    // Continue loop to create new room
+                    println!("Cleaned up duplicate DM room");
                 }
             }
-            None => {
-                let new_room = client.create_dm(recipient_id.as_ref()).await?;
-                println!("Created new DM room");
-                return Ok(new_room);
-            }
+        } else if !has_recipient && members.len() == 1 {
+            room.leave().await?;
+            room.forget().await?;
+            println!("Cleaned up stale DM room (recipient left)");
         }
     }
+
+    if let Some(room) = valid_room {
+        return Ok(room);
+    }
+
+    let new_room = client.create_dm(recipient_id.as_ref()).await?;
+    println!("Created new DM room");
+    Ok(new_room)
 }
