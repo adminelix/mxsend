@@ -1,0 +1,7 @@
+[toolchain]
+# Pin to 1.93.1 to work around matrix-sdk 0.16 query depth overflow on Rust 1.94+
+# Upstream: https://github.com/matrix-org/matrix-rust-sdk/issues/6254
+# Rust regression: https://github.com/rust-lang/rust/issues/152942
+channel = "1.93.1"
+
+components = [ "rustc", "cargo", "clippy", "rustfmt" ]
