@@ -175,6 +175,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            verbosity: Default::default(),
             message: "Integration test message".to_string(),
         };
 
@@ -207,6 +208,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            verbosity: Default::default(),
             message: "Test message from sender to receiver".to_string(),
         };
 
@@ -287,6 +289,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: Some(recovery_key),
+            verbosity: Default::default(),
             message: "Verified test message".to_string(),
         };
         matrix_send::MessageSender::new(opts)
@@ -359,6 +362,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id.clone()),
             recovery_key: None,
+            verbosity: Default::default(),
             message: "First message".to_string(),
         };
         matrix_send::MessageSender::new(opts)
@@ -383,6 +387,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            verbosity: Default::default(),
             message: "Second message".to_string(),
         };
         matrix_send::MessageSender::new(opts)
@@ -446,6 +451,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id.clone()),
             recovery_key: None,
+            verbosity: Default::default(),
             message: "Message in first room".to_string(),
         };
         matrix_send::MessageSender::new(opts)
@@ -479,6 +485,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            verbosity: Default::default(),
             message: "Message in second room".to_string(),
         };
         matrix_send::MessageSender::new(opts)
