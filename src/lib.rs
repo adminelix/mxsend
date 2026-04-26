@@ -2,10 +2,12 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::Parser;
+use clap_verbosity_flag::Verbosity;
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use matrix_sdk::{Client, Room, RoomMemberships, config::SyncSettings};
+use tracing::info;
 
 /// A message recipient — either a user ID (`@user:server`) or a room ID (`!room:server`).
 #[derive(Debug, Clone)]
@@ -64,6 +66,10 @@ pub struct SendOptions {
         env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_RECOVERY_KEY")
     )]
     pub recovery_key: Option<String>,
+
+    /// Verbosity level (use -v, -vv, -vvv, or -q to suppress output)
+    #[command(flatten)]
+    pub verbosity: Verbosity,
 
     /// Plain text message body to send
     pub message: String,
@@ -164,7 +170,7 @@ impl MessageSender {
         let result = send_to_recipient(&client, &self.message, &self.to).await;
 
         client.logout().await?;
-        println!("Matrix auth logged out successfully");
+        info!("Matrix auth logged out successfully");
 
         result?;
         Ok(())
@@ -182,7 +188,7 @@ async fn login(client: &Client, from: &OwnedUserId, password: &str) -> Result<()
 
 async fn verify_session(client: &Client, recovery_key: &str) -> Result<()> {
     client.encryption().recovery().recover(recovery_key).await?;
-    println!("Successfully verified session using recovery key");
+    info!("Successfully verified session using recovery key");
     Ok(())
 }
 
@@ -190,7 +196,7 @@ async fn send_to_recipient(client: &Client, message: &str, recipient: &Recipient
     let room = resolve_room(client, recipient).await?;
     let content = RoomMessageEventContent::text_plain(message);
     room.send(content).await?;
-    println!("Message sent successfully!");
+    info!("Message sent successfully!");
     Ok(())
 }
 
@@ -214,13 +220,13 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
                 Some(_) => {
                     room.leave().await?;
                     room.forget().await?;
-                    println!("Cleaned up duplicate DM room");
+                    info!("Cleaned up duplicate DM room");
                 }
             }
         } else if !recipient_is_member && members.len() == 1 {
             room.leave().await?;
             room.forget().await?;
-            println!("Cleaned up stale DM room (recipient left)");
+            info!("Cleaned up stale DM room (recipient left)");
         }
     }
 
@@ -229,6 +235,6 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
     }
 
     let new_room = client.create_dm(user_id.as_ref()).await?;
-    println!("Created new DM room");
+    info!("Created new DM room");
     Ok(new_room)
 }
