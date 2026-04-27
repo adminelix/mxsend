@@ -1,19 +1,238 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
 stages:
+  - check
   - test
   - secret-detection
-sast:
+  - security
+  - build
+  - release
+
+variables:
+  CARGO_HOME: "${CI_PROJECT_DIR}/.cargo"
+  RUSTFLAGS: "-D warnings"
+  CARGO_NET_RETRY: "10"
+  RUST_BACKTRACE: "1"
+  SECRET_DETECTION_ENABLED: "true"
+
+.cargo-cache: &cargo-cache
+  key:
+    files:
+      - Cargo.lock
+  paths:
+    - .cargo/bin/
+    - .cargo/registry/index/
+    - .cargo/registry/cache/
+    - .cargo/git/db/
+  policy: pull-push
+
+.default-rust:
+  image: rust:1.93.1-bookworm
+  before_script:
+    - rustc --version && cargo --version
+  cache: *cargo-cache
+
+# =============================================================================
+# RULES TEMPLATES
+# =============================================================================
+
+.check-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+.test-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+.security-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+.build-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# CHECK STAGE
+# =============================================================================
+
+fmt:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+
+clippy:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+check:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  script:
+    - cargo check --all-targets --all-features
+
+doc:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  variables:
+    RUSTDOCFLAGS: "-D warnings"
+  script:
+    - cargo doc --no-deps --all-features
+
+# =============================================================================
+# TEST STAGE
+# =============================================================================
+
+test:
+  extends: .default-rust
   stage: test
+  rules: !reference [.test-rules, rules]
+  services:
+    - docker:26-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_HOST: "tcp://docker:2376"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
+  before_script:
+    - !reference [.default-rust, before_script]
+    - apt-get update && apt-get install -y --no-install-recommends docker.io
+  script:
+    - cargo test
+
+# =============================================================================
+# SECURITY STAGE
+# =============================================================================
+
+cargo-audit:
+  extends: .default-rust
+  stage: security
+  rules: !reference [.security-rules, rules]
+  script:
+    - cargo install cargo-audit
+    - cargo audit
+  allow_failure: true
+
+cargo-deny:
+  extends: .default-rust
+  stage: security
+  rules: !reference [.security-rules, rules]
+  script:
+    - cargo install cargo-deny
+    - cargo deny check
+
+# GitLab built-in security scanners
 include:
   - template: Security/SAST.gitlab-ci.yml
   - template: Security/Secret-Detection.gitlab-ci.yml
-variables:
-  SECRET_DETECTION_ENABLED: 'true'
+
+sast:
+  stage: test
+
 secret_detection:
   stage: secret-detection
+
+# =============================================================================
+# BUILD STAGE
+# =============================================================================
+
+.build-base:
+  extends: .default-rust
+  stage: build
+  rules: !reference [.build-rules, rules]
+
+build-linux-x86_64:
+  extends: .build-base
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - cargo build --release
+    - mkdir -p releases
+    - cp target/release/mxsend "releases/mxsend-${VERSION}-x86_64-unknown-linux-gnu"
+    - echo "${CI_JOB_ID}" > releases/job_id_linux_x86_64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+build-linux-aarch64:
+  extends: .build-base
+  before_script:
+    - !reference [.default-rust, before_script]
+    - dpkg --add-architecture arm64
+    - apt-get update
+    - apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+    - rustup target add aarch64-unknown-linux-gnu
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+    - cargo build --release --target aarch64-unknown-linux-gnu
+    - mkdir -p releases
+    - cp "target/aarch64-unknown-linux-gnu/release/mxsend" "releases/mxsend-${VERSION}-aarch64-unknown-linux-gnu"
+    - echo "${CI_JOB_ID}" > releases/job_id_linux_aarch64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+build-windows-x86_64:
+  extends: .build-base
+  before_script:
+    - !reference [.default-rust, before_script]
+    - apt-get update
+    - apt-get install -y --no-install-recommends mingw-w64
+    - rustup target add x86_64-pc-windows-gnu
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+    - cargo build --release --target x86_64-pc-windows-gnu
+    - mkdir -p releases
+    - cp "target/x86_64-pc-windows-gnu/release/mxsend.exe" "releases/mxsend-${VERSION}-x86_64-pc-windows-gnu.exe"
+    - echo "${CI_JOB_ID}" > releases/job_id_windows_x86_64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+# =============================================================================
+# RELEASE STAGE
+# =============================================================================
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build-linux-x86_64
+      artifacts: true
+    - job: build-linux-aarch64
+      artifacts: true
+    - job: build-windows-x86_64
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - LINUX_JOB_ID=$(cat releases/job_id_linux_x86_64)
+    - ARM_JOB_ID=$(cat releases/job_id_linux_aarch64)
+    - WIN_JOB_ID=$(cat releases/job_id_windows_x86_64)
+    - |
+      release-cli create \
+        --name "mxsend ${CI_COMMIT_TAG}" \
+        --tag-name "${CI_COMMIT_TAG}" \
+        --ref "${CI_COMMIT_SHA}" \
+        --description "Release ${CI_COMMIT_TAG} of mxsend.\n\nSee [CHANGELOG.md](CHANGELOG.md) for details." \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${LINUX_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${ARM_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${WIN_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"link_type\":\"package\"}"

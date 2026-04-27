@@ -1,3 +1,5 @@
+[![pipeline status](https://gitlab.com/adminelix/mxsend/badges/main/pipeline.svg)](https://gitlab.com/adminelix/mxsend/-/commits/main)
+
 # mxsend
 
 > A tiny, stateless CLI tool for sending Matrix notifications from servers and scripts.
@@ -113,7 +115,27 @@ cargo fmt
 cargo clippy
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0  
+  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license  
+  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+
 ## Project
 
 - **Repository:** https://gitlab.com/adminelix/mxsend
+- **Releases:** https://gitlab.com/adminelix/mxsend/-/releases
 
