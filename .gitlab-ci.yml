@@ -123,7 +123,7 @@ cargo-audit:
   stage: security
   rules: !reference [.security-rules, rules]
   script:
-    - cargo install cargo-audit
+    - which cargo-audit || cargo install cargo-audit
     - cargo audit
   allow_failure: true
 
@@ -132,7 +132,7 @@ cargo-deny:
   stage: security
   rules: !reference [.security-rules, rules]
   script:
-    - cargo install cargo-deny
+    - which cargo-deny || cargo install cargo-deny
     - cargo deny check
 
 # GitLab built-in security scanners
