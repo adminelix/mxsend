@@ -22,6 +22,8 @@ variables:
     - .cargo/registry/index/
     - .cargo/registry/cache/
     - .cargo/git/db/
+    - .crates.toml
+    - .crates2.json
   policy: pull-push
 
 .default-rust:
@@ -123,7 +125,7 @@ cargo-audit:
   stage: security
   rules: !reference [.security-rules, rules]
   script:
-    - which cargo-audit || cargo install cargo-audit
+    - cargo install cargo-audit
     - cargo audit
   allow_failure: true
 
@@ -132,7 +134,7 @@ cargo-deny:
   stage: security
   rules: !reference [.security-rules, rules]
   script:
-    - which cargo-deny || cargo install cargo-deny
+    - cargo install cargo-deny
     - cargo deny check
 
 # GitLab built-in security scanners
