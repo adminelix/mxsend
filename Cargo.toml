@@ -1,5 +1,5 @@
 [package]
-name = "matrix-send"
+name = "mxsend"
 version = "0.1.0"
 edition = "2024"
 description = "A command-line tool for sending messages via Matrix"

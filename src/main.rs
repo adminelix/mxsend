@@ -1,5 +1,5 @@
 use clap::Parser;
-use matrix_send::{MessageSender, SendOptions};
+use mxsend::{MessageSender, SendOptions};
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::{FilterExt, Targets};
 use tracing_subscriber::fmt;
@@ -12,11 +12,11 @@ fn main() {
     let verbosity_level = opts.verbosity.tracing_level_filter();
 
     let app_filter = Targets::new()
-        .with_target("matrix_send", verbosity_level)
+        .with_target("mxsend", verbosity_level)
         .with_default(tracing_subscriber::filter::LevelFilter::OFF);
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("matrix_send=off"));
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("mxsend=off"));
 
     let combined_filter = env_filter.or(app_filter);
 

@@ -13,7 +13,7 @@ mod tests {
     use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
     use matrix_sdk::ruma::events::room::message::{SyncRoomMessageEvent, TextMessageEventContent};
     use matrix_sdk::ruma::{OwnedRoomId, UserId};
-    use matrix_send::Recipient;
+    use mxsend::Recipient;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::sync::RwLock;
@@ -36,7 +36,7 @@ mod tests {
     async fn create_test_user(ctx: &TestContext, name: &str) -> (String, matrix_sdk::Client) {
         let user_id_str = ctx.add_user(name, DEFAULT_PASSWORD, true).await;
         let user_id = UserId::parse(&user_id_str).expect("valid user id");
-        let client = matrix_send::build_client(&user_id, Some(&ctx.homeserver_url()))
+        let client = mxsend::build_client(&user_id, Some(&ctx.homeserver_url()))
             .await
             .expect("Failed to build client");
         (user_id_str, client)
@@ -175,7 +175,7 @@ mod tests {
         let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
         let sender_id = UserId::parse(&sender_id_str).expect("valid user id");
 
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id,
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
@@ -184,7 +184,7 @@ mod tests {
             message: "Integration test message".to_string(),
         };
 
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -209,7 +209,7 @@ mod tests {
 
         // Send message from sender
         let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: UserId::parse(&sender_id_str).expect("valid sender id"),
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
@@ -218,7 +218,7 @@ mod tests {
             message: "Test message from sender to receiver".to_string(),
         };
 
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -291,7 +291,7 @@ mod tests {
         // Step 4: Send message with recovery key (enables verification)
         let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
         let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id,
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
@@ -299,7 +299,7 @@ mod tests {
             verbosity: Default::default(),
             message: "Verified test message".to_string(),
         };
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -365,7 +365,7 @@ mod tests {
         let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
 
         // First send — creates the DM room
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id.clone()),
@@ -373,7 +373,7 @@ mod tests {
             verbosity: Default::default(),
             message: "First message".to_string(),
         };
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -390,7 +390,7 @@ mod tests {
         }
 
         // Second send — must reuse the existing DM room
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
@@ -398,7 +398,7 @@ mod tests {
             verbosity: Default::default(),
             message: "Second message".to_string(),
         };
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -455,7 +455,7 @@ mod tests {
         let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
 
         // First send — creates the DM room
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id.clone()),
@@ -463,7 +463,7 @@ mod tests {
             verbosity: Default::default(),
             message: "Message in first room".to_string(),
         };
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -489,7 +489,7 @@ mod tests {
         }
 
         // Second send — must create a new DM room after cleaning up the stale one
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id.clone(),
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
@@ -497,7 +497,7 @@ mod tests {
             verbosity: Default::default(),
             message: "Message in second room".to_string(),
         };
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
@@ -577,7 +577,7 @@ mod tests {
         // Create sender and send message to the room ID
         let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
         let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
-        let opts = matrix_send::SendOptions {
+        let opts = mxsend::SendOptions {
             from: sender_id,
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::Room(room_id.clone()),
@@ -586,7 +586,7 @@ mod tests {
             message: "Message to public room by ID".to_string(),
         };
 
-        matrix_send::MessageSender::new(opts)
+        mxsend::MessageSender::new(opts)
             .with_homeserver(&ctx.homeserver_url())
             .send()
             .await
