@@ -6,7 +6,7 @@ use clap_verbosity_flag::Verbosity;
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
-use matrix_sdk::{Client, Room, RoomMemberships, config::SyncSettings};
+use matrix_sdk::{Client, Room, RoomMemberships, RoomState, config::SyncSettings};
 use tracing::info;
 
 /// A message recipient — either a user ID (`@user:server`) or a room ID (`!room:server`).
@@ -98,9 +98,20 @@ pub async fn build_client(from: &UserId, homeserver_url: Option<&str>) -> Result
 pub async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room> {
     match recipient {
         Recipient::User(user_id) => resolve_dm_room(client, user_id).await,
-        Recipient::Room(room_id) => client
-            .get_room(room_id)
-            .ok_or_else(|| anyhow::anyhow!("room {room_id} not found")),
+        Recipient::Room(room_id) => {
+            if let Some(room) = client.get_room(room_id) {
+                if room.state() == RoomState::Joined {
+                    Ok(room)
+                } else {
+                    room.join().await?;
+                    client
+                        .get_room(room_id)
+                        .ok_or_else(|| anyhow::anyhow!("room {room_id} not found after join"))
+                }
+            } else {
+                client.join_room_by_id(room_id).await.map_err(Into::into)
+            }
+        }
     }
 }
 
