@@ -32,6 +32,7 @@ impl FromStr for Recipient {
     }
 }
 
+/// CLI options parsed by [`clap`].
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct SendOptions {
@@ -73,51 +74,6 @@ pub struct SendOptions {
 
     /// Plain text message body to send
     pub message: String,
-}
-
-/// Build a Matrix client with an optional explicit homeserver URL.
-///
-/// When `homeserver_url` is `None`, the homeserver is discovered from the
-/// user's server name via the Matrix well-known protocol.
-pub async fn build_client(from: &UserId, homeserver_url: Option<&str>) -> Result<Client> {
-    let mut builder = Client::builder();
-
-    builder = if let Some(url) = homeserver_url {
-        builder.homeserver_url(url)
-    } else {
-        builder.server_name_or_homeserver_url(from.server_name())
-    };
-
-    Ok(builder.build().await?)
-}
-
-/// Resolve a [`Recipient`] to a concrete [`Room`].
-///
-/// For user IDs, scans joined rooms for an existing DM or creates a new one.
-/// For room IDs, looks up the room directly.
-pub async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room> {
-    match recipient {
-        Recipient::User(user_id) => resolve_dm_room(client, user_id).await,
-        Recipient::Room(room_id) => {
-            if let Some(room) = client.get_room(room_id) {
-                if room.state() == RoomState::Joined {
-                    Ok(room)
-                } else {
-                    room.join().await?;
-                    client
-                        .get_room(room_id)
-                        .ok_or_else(|| anyhow::anyhow!("room {room_id} not found after join"))
-                }
-            } else {
-                client.join_room_by_id(room_id).await.map_err(Into::into)
-            }
-        }
-    }
-}
-
-/// Convenience wrapper that builds a sender from [`SendOptions`] and sends the message.
-pub async fn run_send_pipeline(opts: SendOptions) -> Result<()> {
-    MessageSender::new(opts).send().await
 }
 
 /// Builder for sending a Matrix message.
@@ -188,6 +144,54 @@ impl MessageSender {
     }
 }
 
+/// Build a Matrix client with an optional explicit homeserver URL.
+///
+/// When `homeserver_url` is `None`, the homeserver is discovered from the
+/// user's server name via the Matrix well-known protocol.
+pub async fn build_client(from: &UserId, homeserver_url: Option<&str>) -> Result<Client> {
+    let mut builder = Client::builder();
+
+    builder = if let Some(url) = homeserver_url {
+        builder.homeserver_url(url)
+    } else {
+        builder.server_name_or_homeserver_url(from.server_name())
+    };
+
+    Ok(builder.build().await?)
+}
+
+/// Resolve a [`Recipient`] to a concrete [`Room`].
+///
+/// For user IDs, scans joined rooms for an existing DM or creates a new one.
+/// For room IDs, joins the room if the sender is not already a member.
+async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room> {
+    match recipient {
+        Recipient::User(user_id) => resolve_dm_room(client, user_id).await,
+        Recipient::Room(room_id) => {
+            if let Some(room) = client.get_room(room_id) {
+                if room.state() == RoomState::Joined {
+                    Ok(room)
+                } else {
+                    room.join().await?;
+                    client
+                        .get_room(room_id)
+                        .ok_or_else(|| anyhow::anyhow!("room {room_id} not found after join"))
+                }
+            } else {
+                client.join_room_by_id(room_id).await.map_err(Into::into)
+            }
+        }
+    }
+}
+
+async fn send_to_recipient(client: &Client, message: &str, recipient: &Recipient) -> Result<()> {
+    let room = resolve_room(client, recipient).await?;
+    let content = RoomMessageEventContent::text_plain(message);
+    room.send(content).await?;
+    info!("Message sent successfully!");
+    Ok(())
+}
+
 async fn login(client: &Client, from: &OwnedUserId, password: &str) -> Result<()> {
     client
         .matrix_auth()
@@ -200,14 +204,6 @@ async fn login(client: &Client, from: &OwnedUserId, password: &str) -> Result<()
 async fn verify_session(client: &Client, recovery_key: &str) -> Result<()> {
     client.encryption().recovery().recover(recovery_key).await?;
     info!("Successfully verified session using recovery key");
-    Ok(())
-}
-
-async fn send_to_recipient(client: &Client, message: &str, recipient: &Recipient) -> Result<()> {
-    let room = resolve_room(client, recipient).await?;
-    let content = RoomMessageEventContent::text_plain(message);
-    room.send(content).await?;
-    info!("Message sent successfully!");
     Ok(())
 }
 
