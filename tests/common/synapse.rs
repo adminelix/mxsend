@@ -6,6 +6,7 @@ use testcontainers::core::{ContainerPort, ContainerState, ExecCommand, WaitFor};
 const DEFAULT_IMAGE_NAME: &str = "matrixdotorg/synapse";
 const DEFAULT_IMAGE_TAG: &str = "latest";
 pub const SYNAPSE_PORT: ContainerPort = ContainerPort::Tcp(8008);
+pub const DEFAULT_SERVER_NAME: &str = "localhost";
 
 #[derive(Debug, Clone)]
 pub struct SynapseImage {
@@ -27,7 +28,7 @@ impl SynapseImage {
         self.env_vars
             .get("SYNAPSE_SERVER_NAME")
             .map(|s| s.as_str())
-            .unwrap_or("localhost")
+            .unwrap_or(DEFAULT_SERVER_NAME)
     }
 
     #[allow(dead_code)]
@@ -40,7 +41,8 @@ impl SynapseImage {
 
 impl Default for SynapseImage {
     fn default() -> Self {
-        let server_name = std::env::var("SYNAPSE_SERVER_NAME").unwrap_or("localhost".to_string());
+        let server_name =
+            std::env::var("SYNAPSE_SERVER_NAME").unwrap_or(DEFAULT_SERVER_NAME.to_string());
         Self {
             admin_user: "admin".to_string(),
             admin_pass: "admin".to_string(),
@@ -94,10 +96,9 @@ impl Image for SynapseImage {
         &self,
         _cs: ContainerState,
     ) -> testcontainers::core::error::Result<Vec<ExecCommand>> {
-        let server_name = self.server_name();
         let register = format!(
-            "register_new_matrix_user http://{}:8008 -c /data/homeserver.yaml -u {} -p {} --admin",
-            server_name, &self.admin_user, &self.admin_pass
+            "register_new_matrix_user http://localhost:8008 -c /data/homeserver.yaml -u {} -p {} --admin",
+            &self.admin_user, &self.admin_pass
         );
         let loop_cmd = format!("until {register}; do sleep 0.5; done");
         let cmd = ExecCommand::new(["/bin/bash", "-c", loop_cmd.as_str()]);
@@ -119,13 +120,14 @@ mod tests {
             .with_log_consumer(LoggingConsumer::new().with_prefix("SYNAPSE"));
         let container = image.start().await.expect("Failed to start Synapse");
 
+        let host = container.get_host().await.expect("get host");
         let port = container.get_host_port_ipv4(8008).await.expect("get port");
         let user = container.image().admin_user();
         let pass = container.image().admin_pass();
         let server_name = container.image().server_name();
 
         let client = Client::builder()
-            .homeserver_url(format!("http://{server_name}:{port}"))
+            .homeserver_url(format!("http://{host}:{port}"))
             .build()
             .await
             .expect("build client");
