@@ -1,7 +1,10 @@
 mod common;
 
 #[cfg(test)]
-#[serial_test::serial]
+// Module-level `#[serial_test::serial]` is intentionally disabled because it
+// breaks RustRover syntax highlighting (proc-macro on module level).
+// Instead, each test function is annotated individually.
+// #[serial_test::serial]
 mod tests {
     use super::common::{SyncThread, TestContext, get_shared_context};
     use matrix_sdk::Room;
@@ -159,6 +162,7 @@ mod tests {
         (sender_id, recovery_key)
     }
 
+    #[serial_test::serial]
     #[tokio::test]
     async fn test_send_message_to_synapse() {
         let _ = env_logger::try_init();
@@ -186,6 +190,7 @@ mod tests {
             .expect("Failed to execute main logic");
     }
 
+    #[serial_test::serial]
     #[tokio::test]
     async fn test_receiver_listens_and_receives_message() {
         let _ = env_logger::try_init();
@@ -251,6 +256,7 @@ mod tests {
         receiver_client.logout().await.ok();
     }
 
+    #[serial_test::serial]
     #[tokio::test]
     async fn test_receiver_listens_and_receives_verified_message() {
         let _ = env_logger::try_init();
@@ -340,6 +346,7 @@ mod tests {
         receiver_client.logout().await.ok();
     }
 
+    #[serial_test::serial]
     #[tokio::test]
     async fn test_dm_room_reused_on_second_send() {
         let _ = env_logger::try_init();
@@ -429,6 +436,7 @@ mod tests {
         receiver_client.logout().await.ok();
     }
 
+    #[serial_test::serial]
     #[tokio::test]
     async fn test_dm_room_recreated_after_recipient_leaves() {
         let _ = env_logger::try_init();
