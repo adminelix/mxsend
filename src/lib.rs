@@ -81,7 +81,7 @@ pub struct SendOptions {
 /// # Example
 ///
 /// ```no_run
-/// # use matrix_send::{SendOptions, MessageSender};
+/// # use mxsend::{SendOptions, MessageSender};
 /// # async fn example(opts: SendOptions) -> anyhow::Result<()> {
 /// MessageSender::new(opts)
 ///     .with_homeserver("http://localhost:8008")

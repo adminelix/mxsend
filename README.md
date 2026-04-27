@@ -1,8 +1,8 @@
-# matrix-send
+# mxsend
 
 > A tiny, stateless CLI tool for sending Matrix notifications from servers and scripts.
 
-`matrix-send` is the Matrix equivalent of `mail` or `mailsend`: it logs in, delivers a message, and logs out. No background daemon, no persistent store, no configuration files. It is purpose-built for one-shot notifications from cron jobs, CI pipelines, monitoring alerts, and administrative scripts.
+`mxsend` is the Matrix equivalent of `mail` or `mailsend`: it logs in, delivers a message, and logs out. No background daemon, no persistent store, no configuration files. It is purpose-built for one-shot notifications from cron jobs, CI pipelines, monitoring alerts, and administrative scripts.
 
 ## Features
 
@@ -10,12 +10,12 @@
 - **Cross-platform** — Single static Rust binary. Runs on any platform supported by the Rust toolchain.
 - **Direct messages & rooms** — Send to a user ID (`@user:server`) to auto-create or reuse a DM, or target a room ID (`!room:server`) directly.
 - **End-to-end encryption** — Optional E2EE support via recovery key verification.
-- **Environment variables** — All options can be passed via `MATRIX_SEND_*` env vars for clean scripting.
+- **Environment variables** — All options can be passed via `MXSEND_*` env vars for clean scripting.
 - **Lightweight** — Minimal dependencies, fast compile, small release binary.
 
 ## How it differs from matrix-commander
 
-| | **matrix-send** | **matrix-commander** |
+| | **mxsend** | **matrix-commander** |
 |---|---|---|
 | **Scope** | One-shot notification sender | Full-featured Matrix CLI client |
 | **State** | Stateless — nothing stored locally | Persistent E2EE store, credential cache, and device state |
@@ -23,7 +23,7 @@
 | **Capabilities** | Send text to user/room, optional E2EE | Send/receive files, listen for messages, manage rooms, SSO, emoji verification, etc. |
 | **Footprint** | Single minimal binary | Larger Python package with storage directory |
 
-If you need a general-purpose Matrix client on the command line, `matrix-commander` is the better choice. If you just need to fire off a notification and forget, use `matrix-send`.
+If you need a general-purpose Matrix client on the command line, `matrix-commander` is the better choice. If you just need to fire off a notification and forget, use `mxsend`.
 
 ## Installation
 
@@ -34,12 +34,12 @@ If you need a general-purpose Matrix client on the command line, `matrix-command
 ### Build from source
 
 ```bash
-git clone https://gitlab.com/adminelix/matrix-send.git
-cd matrix-send
+git clone https://gitlab.com/adminelix/mxsend.git
+cd mxsend
 cargo build --release
 ```
 
-The binary will be available at `target/release/matrix-send`.
+The binary will be available at `target/release/mxsend`.
 
 ### Install with Cargo
 
@@ -52,7 +52,7 @@ cargo install --path .
 ### Command line
 
 ```bash
-matrix-send \
+mxsend \
   --from "@bot:example.com" \
   --password "s3cr3t" \
   --to "@admin:example.com" \
@@ -62,7 +62,7 @@ matrix-send \
 Send to a room instead:
 
 ```bash
-matrix-send \
+mxsend \
   -f "@bot:example.com" \
   -p "s3cr3t" \
   -t "!alerts:example.com" \
@@ -74,11 +74,11 @@ matrix-send \
 For cleaner scripting and to avoid credentials in process lists, use environment variables:
 
 ```bash
-export MATRIX_SEND_FROM="@bot:example.com"
-export MATRIX_SEND_PASSWORD="s3cr3t"
-export MATRIX_SEND_TO="@admin:example.com"
+export MXSEND_FROM="@bot:example.com"
+export MXSEND_PASSWORD="s3cr3t"
+export MXSEND_TO="@admin:example.com"
 
-matrix-send "Cron job finished at $(date)"
+mxsend "Cron job finished at $(date)"
 ```
 
 ### End-to-end encryption
@@ -86,7 +86,7 @@ matrix-send "Cron job finished at $(date)"
 If your server requires E2EE, provide a recovery key:
 
 ```bash
-matrix-send \
+mxsend \
   -f "@bot:example.com" \
   -p "s3cr3t" \
   -t "@admin:example.com" \
@@ -115,5 +115,5 @@ cargo clippy
 
 ## Project
 
-- **Repository:** https://gitlab.com/adminelix/matrix-send
+- **Repository:** https://gitlab.com/adminelix/mxsend
 
