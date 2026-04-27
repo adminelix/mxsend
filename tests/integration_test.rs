@@ -75,7 +75,7 @@ mod tests {
         let message_state = state.clone();
         client.add_event_handler(
             move |ev: SyncRoomMessageEvent,
-                  _room: Room,
+                  room: Room,
                   encryption_info: Option<EncryptionInfo>| {
                 let state = message_state.clone();
                 async move {
@@ -89,6 +89,7 @@ mod tests {
                         let mut guard = state.write().await;
                         guard.message_received = true;
                         guard.message_body = Some(body);
+                        guard.room_id = Some(room.room_id().to_owned());
                         // Track if message was from a verified device
                         guard.message_verified = encryption_info
                             .as_ref()
@@ -544,5 +545,74 @@ mod tests {
         );
 
         receiver_client.logout().await.ok();
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_to_public_room_id() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        // Create room creator, login, and create a public room
+        let (creator_id_str, creator_client) = create_test_user(&ctx, "room_creator").await;
+        login(&creator_client, &creator_id_str, DEFAULT_PASSWORD).await;
+
+        let mut create_request =
+            matrix_sdk::ruma::api::client::room::create_room::v3::Request::default();
+        create_request.preset =
+            Some(matrix_sdk::ruma::api::client::room::create_room::v3::RoomPreset::PublicChat);
+        create_request.visibility = matrix_sdk::ruma::api::client::room::Visibility::Public;
+
+        let room = creator_client
+            .create_room(create_request)
+            .await
+            .expect("Failed to create public room");
+        let room_id = room.room_id().to_owned();
+
+        // Setup room creator to listen for messages
+        let state = Arc::new(RwLock::new(ReceiverState::default()));
+        setup_receiver_handlers(&creator_client, &state);
+        let mut sync_thread = SyncThread::start(creator_client.clone());
+
+        // Create sender and send message to the room ID
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let opts = matrix_send::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::Room(room_id.clone()),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Message to public room by ID".to_string(),
+        };
+
+        matrix_send::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await
+            .expect("Failed to send message to room ID");
+
+        // Wait for room creator to receive the message
+        wait_for_message(&state, false).await;
+        sync_thread.stop();
+
+        // Verify
+        let guard = state.read().await;
+        assert!(
+            guard.message_received,
+            "Room creator should have received the message"
+        );
+        assert_eq!(
+            guard.message_body.as_deref(),
+            Some("Message to public room by ID"),
+            "Message content should match"
+        );
+        assert_eq!(
+            guard.room_id.as_ref(),
+            Some(&room_id),
+            "Message should be in the created public room"
+        );
+
+        creator_client.logout().await.ok();
     }
 }
