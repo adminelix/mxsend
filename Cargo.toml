@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://gitlab.com/adminelix/mxsend"
 
 [dependencies]
-matrix-sdk = { version = "0.16.0", features = ["e2e-encryption"] }
+matrix-sdk = { version = "0.16.0", default-features = false, features = ["e2e-encryption", "automatic-room-key-forwarding", "rustls-tls", "bundled-sqlite"] }
 tokio = { version = "1.0", features = ["full"] }
 clap = { version = "4.0", features = ["derive", "env"] }
 anyhow = "1.0.95"
@@ -18,7 +18,7 @@ clap-verbosity-flag = { version = "3.0", default-features = false, features = ["
 [dev-dependencies]
 testcontainers = "0.27.3"
 env_logger = "0.11.10"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 urlencoding = "2.1"

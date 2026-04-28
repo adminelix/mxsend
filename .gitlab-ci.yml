@@ -22,8 +22,8 @@ variables:
     - .cargo/registry/index/
     - .cargo/registry/cache/
     - .cargo/git/db/
-    - .crates.toml
-    - .crates2.json
+    - .cargo/.crates.toml
+    - .cargo/.crates2.json
   policy: pull-push
 
 .default-rust:
@@ -106,10 +106,10 @@ test:
   services:
     - docker:26-dind
   variables:
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_HOST: "tcp://docker:2376"
-    DOCKER_TLS_VERIFY: "1"
-    DOCKER_CERT_PATH: "/certs/client"
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_VERIFY: "0"
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_CERT_PATH: ""
   before_script:
     - !reference [.default-rust, before_script]
     - apt-get update && apt-get install -y --no-install-recommends docker.io
