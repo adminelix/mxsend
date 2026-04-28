@@ -226,11 +226,14 @@ release:
     - ARM_JOB_ID=$(cat releases/job_id_linux_aarch64)
     - WIN_JOB_ID=$(cat releases/job_id_windows_x86_64)
     - |
+      DESCRIPTION="Release ${CI_COMMIT_TAG} of mxsend.
+
+See [CHANGELOG.md](CHANGELOG.md) for details."
       release-cli create \
         --name "mxsend ${CI_COMMIT_TAG}" \
         --tag-name "${CI_COMMIT_TAG}" \
         --ref "${CI_COMMIT_SHA}" \
-        --description "Release ${CI_COMMIT_TAG} of mxsend.\n\nSee [CHANGELOG.md](CHANGELOG.md) for details." \
+        --description "$DESCRIPTION" \
         --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${LINUX_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"link_type\":\"package\"}" \
         --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${ARM_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"link_type\":\"package\"}" \
         --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${WIN_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"link_type\":\"package\"}"
