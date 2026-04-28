@@ -105,14 +105,6 @@ test:
   rules: !reference [.test-rules, rules]
   services:
     - docker:26-dind
-  variables:
-    DOCKER_HOST: "tcp://docker:2375"
-    DOCKER_TLS_VERIFY: "0"
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_CERT_PATH: ""
-  before_script:
-    - !reference [.default-rust, before_script]
-    - apt-get update && apt-get install -y --no-install-recommends docker.io
   script:
     - cargo test
 
