@@ -1,4 +1,5 @@
 stages:
+  - prepare
   - check
   - test
   - security
@@ -141,7 +142,7 @@ secret_detection:
 # =============================================================================
 
 build-ci-image:
-  stage: build
+  stage: prepare
   image: docker:26-dind
   services:
     - docker:26-dind
