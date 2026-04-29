@@ -293,7 +293,7 @@ release:
 
       See [CHANGELOG.md](CHANGELOG.md) for details."
       release-cli create \
-        --name "mxsend ${CI_COMMIT_TAG}" \  
+        --name "mxsend ${CI_COMMIT_TAG}" \
         --tag-name "${CI_COMMIT_TAG}" \
         --ref "${CI_COMMIT_SHA}" \
         --description "$DESCRIPTION" \
