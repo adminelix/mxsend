@@ -1,0 +1,4 @@
+FROM joseluisq/rust-linux-darwin-builder:2.0.0-beta.1
+
+RUN rustup update 1.93.1 && rustup default 1.93.1 && \
+    rustup target add x86_64-apple-darwin aarch64-apple-darwin
