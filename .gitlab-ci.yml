@@ -1,19 +1,304 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
 stages:
+  - prepare
+  - check
   - test
-  - secret-detection
-sast:
+  - security
+  - build
+  - release
+
+variables:
+  CARGO_HOME: "${CI_PROJECT_DIR}/.cargo"
+  RUSTFLAGS: "-D warnings"
+  CARGO_NET_RETRY: "10"
+  RUST_BACKTRACE: "1"
+  SECRET_DETECTION_ENABLED: "true"
+  CI_IMAGE_TAG: "${CI_REGISTRY_IMAGE}/ci:latest"
+  CI_IMAGE_TAG_MACOS: "${CI_REGISTRY_IMAGE}/ci-macos:latest"
+
+.cargo-cache: &cargo-cache
+  key:
+    files:
+      - Cargo.lock
+  paths:
+    - .cargo/bin/
+    - .cargo/registry/index/
+    - .cargo/registry/cache/
+    - .cargo/git/db/
+    - .cargo/.crates.toml
+    - .cargo/.crates2.json
+  policy: pull-push
+
+.default-rust:
+  image: ${CI_IMAGE_TAG}
+  before_script:
+    - rustc --version && cargo --version
+  cache: *cargo-cache
+
+# =============================================================================
+# RULES TEMPLATES
+# =============================================================================
+
+.check-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+.test-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+.security-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+.build-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# CHECK STAGE
+# =============================================================================
+
+fmt:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  script:
+    - cargo fmt -- --check
+
+clippy:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  script:
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+check:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  script:
+    - cargo check --all-targets --all-features
+
+doc:
+  extends: .default-rust
+  stage: check
+  rules: !reference [.check-rules, rules]
+  variables:
+    RUSTDOCFLAGS: "-D warnings"
+  script:
+    - cargo doc --no-deps --all-features
+
+# =============================================================================
+# TEST STAGE
+# =============================================================================
+
+test:
+  extends: .default-rust
   stage: test
+  rules: !reference [.test-rules, rules]
+  services:
+    - docker:26-dind
+  script:
+    - cargo test
+
+# =============================================================================
+# SECURITY STAGE
+# =============================================================================
+
+cargo-audit:
+  extends: .default-rust
+  stage: security
+  rules: !reference [.security-rules, rules]
+  script:
+    - cargo audit
+  allow_failure: true
+
+cargo-deny:
+  extends: .default-rust
+  stage: security
+  rules: !reference [.security-rules, rules]
+  script:
+    - cargo deny check
+
+# GitLab built-in security scanners
 include:
   - template: Security/SAST.gitlab-ci.yml
   - template: Security/Secret-Detection.gitlab-ci.yml
-variables:
-  SECRET_DETECTION_ENABLED: 'true'
+
+sast:
+  stage: test
+
 secret_detection:
-  stage: secret-detection
+  stage: check
+
+# =============================================================================
+# BUILD STAGE
+# =============================================================================
+
+build-ci-image:
+  stage: prepare
+  image: docker:26-dind
+  services:
+    - docker:26-dind
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - Dockerfile.ci
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_IMAGE_TAG || true
+    - docker build
+        --cache-from $CI_IMAGE_TAG
+        -t $CI_IMAGE_TAG
+        -f Dockerfile.ci .
+    - docker push $CI_IMAGE_TAG
+
+build-ci-image-macos:
+  stage: prepare
+  image: docker:26-dind
+  services:
+    - docker:26-dind
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - Dockerfile.ci.macos
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_IMAGE_TAG_MACOS || true
+    - docker build
+        --cache-from $CI_IMAGE_TAG_MACOS
+        -t $CI_IMAGE_TAG_MACOS
+        -f Dockerfile.ci.macos .
+    - docker push $CI_IMAGE_TAG_MACOS
+
+.build-base:
+  extends: .default-rust
+  stage: build
+  rules: !reference [.build-rules, rules]
+
+build-linux-x86_64:
+  extends: .build-base
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - cargo build --release
+    - mkdir -p releases
+    - cp target/release/mxsend "releases/mxsend-${VERSION}-x86_64-unknown-linux-gnu"
+    - echo "${CI_JOB_ID}" > releases/job_id_linux_x86_64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+build-linux-aarch64:
+  extends: .build-base
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+    - cargo build --release --target aarch64-unknown-linux-gnu
+    - mkdir -p releases
+    - cp "target/aarch64-unknown-linux-gnu/release/mxsend" "releases/mxsend-${VERSION}-aarch64-unknown-linux-gnu"
+    - echo "${CI_JOB_ID}" > releases/job_id_linux_aarch64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+build-windows-x86_64:
+  extends: .build-base
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+    - cargo build --release --target x86_64-pc-windows-gnu
+    - mkdir -p releases
+    - cp "target/x86_64-pc-windows-gnu/release/mxsend.exe" "releases/mxsend-${VERSION}-x86_64-pc-windows-gnu.exe"
+    - echo "${CI_JOB_ID}" > releases/job_id_windows_x86_64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+build-macos-x86_64:
+  stage: build
+  image: ${CI_IMAGE_TAG_MACOS}
+  rules: !reference [.build-rules, rules]
+  variables:
+    CC: o64-clang
+    CXX: o64-clang++
+    CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER: o64-clang
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - cargo build --release --target x86_64-apple-darwin
+    - mkdir -p releases
+    - cp "target/x86_64-apple-darwin/release/mxsend" "releases/mxsend-${VERSION}-x86_64-apple-darwin"
+    - echo "${CI_JOB_ID}" > releases/job_id_macos_x86_64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+build-macos-aarch64:
+  stage: build
+  image: ${CI_IMAGE_TAG_MACOS}
+  rules: !reference [.build-rules, rules]
+  variables:
+    CC: oa64-clang
+    CXX: oa64-clang++
+    CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: oa64-clang
+  script:
+    - export VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_REF_SLUG}}"
+    - cargo build --release --target aarch64-apple-darwin
+    - mkdir -p releases
+    - cp "target/aarch64-apple-darwin/release/mxsend" "releases/mxsend-${VERSION}-aarch64-apple-darwin"
+    - echo "${CI_JOB_ID}" > releases/job_id_macos_aarch64
+  artifacts:
+    paths:
+      - releases/
+    expire_in: never
+
+# =============================================================================
+# RELEASE STAGE
+# =============================================================================
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build-linux-x86_64
+      artifacts: true
+    - job: build-linux-aarch64
+      artifacts: true
+    - job: build-windows-x86_64
+      artifacts: true
+    - job: build-macos-x86_64
+      artifacts: true
+    - job: build-macos-aarch64
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - LINUX_JOB_ID=$(cat releases/job_id_linux_x86_64)
+    - ARM_JOB_ID=$(cat releases/job_id_linux_aarch64)
+    - WIN_JOB_ID=$(cat releases/job_id_windows_x86_64)
+    - MACOS_X64_JOB_ID=$(cat releases/job_id_macos_x86_64)
+    - MACOS_ARM_JOB_ID=$(cat releases/job_id_macos_aarch64)
+    - |
+      DESCRIPTION="Release ${CI_COMMIT_TAG} of mxsend.
+
+      See [CHANGELOG.md](CHANGELOG.md) for details."
+      release-cli create \
+        --name "mxsend ${CI_COMMIT_TAG}" \
+        --tag-name "${CI_COMMIT_TAG}" \
+        --ref "${CI_COMMIT_SHA}" \
+        --description "$DESCRIPTION" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${LINUX_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-unknown-linux-gnu\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${ARM_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-aarch64-unknown-linux-gnu\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${WIN_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-pc-windows-gnu.exe\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-x86_64-apple-darwin\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${MACOS_X64_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-x86_64-apple-darwin\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-x86_64-apple-darwin\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"mxsend-${CI_COMMIT_TAG}-aarch64-apple-darwin\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${MACOS_ARM_JOB_ID}/artifacts/raw/releases/mxsend-${CI_COMMIT_TAG}-aarch64-apple-darwin\",\"filepath\":\"/mxsend-${CI_COMMIT_TAG}-aarch64-apple-darwin\",\"link_type\":\"package\"}"

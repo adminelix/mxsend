@@ -25,6 +25,7 @@ struct CreateUserRequest {
 pub struct TestContext {
     #[allow(dead_code)] // kept alive to prevent container drop
     container: Arc<ContainerAsync<SynapseImage>>,
+    host: String,
     port: u16,
     admin_token: String,
 }
@@ -32,13 +33,21 @@ pub struct TestContext {
 impl TestContext {
     pub async fn add_user(&self, base: &str, password: &str, admin: bool) -> String {
         let username = unique_name(base);
-        create_user(self.port, &self.admin_token, &username, password, admin)
-            .await
-            .expect("Failed to create user")
+        create_user(
+            &self.host,
+            self.port,
+            self.container.image().server_name(),
+            &self.admin_token,
+            &username,
+            password,
+            admin,
+        )
+        .await
+        .expect("Failed to create user")
     }
 
     pub fn homeserver_url(&self) -> String {
-        format!("http://localhost:{}", self.port)
+        format!("http://{}:{}", self.host, self.port)
     }
 
     #[allow(dead_code)]
@@ -74,26 +83,33 @@ async fn create_context() -> Arc<TestContext> {
             .expect("Failed to start Synapse container"),
     );
 
+    let host = container
+        .get_host()
+        .await
+        .expect("Failed to get host")
+        .to_string();
+
     let port = container
         .get_host_port_ipv4(8008)
         .await
         .expect("Failed to get port");
 
-    let admin_token = get_admin_access_token(port)
+    let admin_token = get_admin_access_token(&host, port)
         .await
         .expect("Failed to get admin access token");
 
     Arc::new(TestContext {
         container,
+        host,
         port,
         admin_token,
     })
 }
 
-async fn get_admin_access_token(port: u16) -> Result<String, anyhow::Error> {
+async fn get_admin_access_token(host: &str, port: u16) -> Result<String, anyhow::Error> {
     let client = HttpClient::new();
     let response = client
-        .post(format!("http://localhost:{port}/_matrix/client/r0/login"))
+        .post(format!("http://{host}:{port}/_matrix/client/r0/login"))
         .json(&serde_json::json!({
             "type": "m.login.password",
             "user": "admin",
@@ -107,16 +123,18 @@ async fn get_admin_access_token(port: u16) -> Result<String, anyhow::Error> {
 }
 
 async fn create_user(
+    host: &str,
     port: u16,
+    server_name: &str,
     admin_token: &str,
     username: &str,
     password: &str,
     admin: bool,
 ) -> Result<String, anyhow::Error> {
     let client = HttpClient::new();
-    let user_id = format!("@{username}:localhost");
+    let user_id = format!("@{username}:{server_name}");
     let url = format!(
-        "http://localhost:{port}/_synapse/admin/v2/users/{}",
+        "http://{host}:{port}/_synapse/admin/v2/users/{}",
         urlencoding::encode(&user_id)
     );
 

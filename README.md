@@ -1,3 +1,5 @@
+[![pipeline status](https://gitlab.com/adminelix/mxsend/badges/main/pipeline.svg)](https://gitlab.com/adminelix/mxsend/-/commits/main)
+
 # mxsend
 
 > A tiny, stateless CLI tool for sending Matrix notifications from servers and scripts.
@@ -113,7 +115,65 @@ cargo fmt
 cargo clippy
 ```
 
+### Local container testing
+
+Each CI stage can be run locally via podman using the `scripts/Containerfile.*` files:
+
+```bash
+# Check stage (fmt, clippy, check, doc)
+podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-check
+
+# Test stage (mounts host podman socket for testcontainers)
+podman run --rm \
+  -v $(pwd):/workspace:Z \
+  -v $HOME/.local/share/containers/podman/machine/podman.sock:/var/run/docker.sock:Z \
+  localhost/mxsend-test
+
+# Security stage (cargo audit, cargo deny)
+podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-security
+
+# Build stage — native Linux x86_64
+podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-build-linux-x86_64
+
+# Build stage — cross-compile Linux ARM64
+podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-build-linux-aarch64
+
+# Build stage — cross-compile Windows x86_64
+podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-build-windows-x86_64
+```
+
+Build the images first with:
+
+```bash
+podman build -f scripts/Containerfile.check -t mxsend-check .
+podman build -f scripts/Containerfile.test -t mxsend-test .
+podman build -f scripts/Containerfile.security -t mxsend-security .
+podman build -f scripts/Containerfile.build-linux-x86_64 -t mxsend-build-linux-x86_64 .
+podman build -f scripts/Containerfile.build-linux-aarch64 -t mxsend-build-linux-aarch64 .
+podman build -f scripts/Containerfile.build-windows-x86_64 -t mxsend-build-windows-x86_64 .
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0  
+  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license  
+  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+
 ## Project
 
 - **Repository:** https://gitlab.com/adminelix/mxsend
+- **Releases:** https://gitlab.com/adminelix/mxsend/-/releases
 
