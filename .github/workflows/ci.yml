@@ -48,7 +48,6 @@ jobs:
         run: cargo install cargo-audit cargo-deny
       - name: cargo audit
         run: cargo audit
-        continue-on-error: true
       - name: cargo deny
         run: cargo deny check
 
