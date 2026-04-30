@@ -114,14 +114,33 @@ mxsend \
 
 ### Send file contents
 
-Read a file into the message body using command substitution:
+Pipe or redirect file contents into the message body:
 
 ```bash
 mxsend \
   -f "@bot:example.com" \
   -p "s3cr3t" \
   -t "@admin:example.com" \
-  "$(cat /var/log/backup-status.txt)"
+  < file.txt
+```
+
+Or pipe from another command:
+
+```bash
+echo "Disk usage at $(df -h / | tail -1)" | mxsend \
+  -f "@bot:example.com" \
+  -p "s3cr3t" \
+  -t "@admin:example.com"
+```
+
+You can still pass the message as an argument when it's short:
+
+```bash
+mxsend \
+  -f "@bot:example.com" \
+  -p "s3cr3t" \
+  -t "@admin:example.com" \
+  "Server backup completed."
 ```
 
 ## Development
