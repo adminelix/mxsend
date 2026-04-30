@@ -120,14 +120,24 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           pattern: mxsend-*
           path: releases/
           merge-multiple: true
+      - uses: orhun/git-cliff-action@v4
+        id: cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          GITHUB_REPO: ${{ github.repository }}
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: releases/*
-          generate_release_notes: true
+          body: ${{ steps.cliff.outputs.changelog }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
           update_release: true
