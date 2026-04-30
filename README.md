@@ -1,4 +1,4 @@
-[![pipeline status](https://gitlab.com/adminelix/mxsend/badges/main/pipeline.svg)](https://gitlab.com/adminelix/mxsend/-/commits/main)
+[![CI](https://github.com/adminelix/mxsend/actions/workflows/ci.yml/badge.svg)](https://github.com/adminelix/mxsend/actions/workflows/ci.yml)
 
 # mxsend
 
@@ -36,7 +36,7 @@ If you need a general-purpose Matrix client on the command line, `matrix-command
 ### Build from source
 
 ```bash
-git clone https://gitlab.com/adminelix/mxsend.git
+git clone https://github.com/adminelix/mxsend.git
 cd mxsend
 cargo build --release
 ```
@@ -174,6 +174,6 @@ dual licensed as above, without any additional terms or conditions.
 
 ## Project
 
-- **Repository:** https://gitlab.com/adminelix/mxsend
-- **Releases:** https://gitlab.com/adminelix/mxsend/-/releases
+- **Repository:** https://github.com/adminelix/mxsend
+- **Releases:** https://github.com/adminelix/mxsend/releases
 

@@ -13,7 +13,7 @@ Thank you for your interest in contributing to `mxsend`!
    cargo clippy --all-targets --all-features -- -D warnings
    cargo test
    ```
-5. Submit a merge request with a clear description.
+5. Submit a pull request with a clear description.
 
 ## Code of Conduct
 

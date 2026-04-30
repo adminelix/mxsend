@@ -4,7 +4,7 @@ version = "0.1.0-rc.1"
 edition = "2024"
 description = "A command-line tool for sending messages via Matrix"
 license = "MIT OR Apache-2.0"
-repository = "https://gitlab.com/adminelix/mxsend"
+repository = "https://github.com/adminelix/mxsend"
 
 [dependencies]
 matrix-sdk = { version = "0.16.0", default-features = false, features = ["e2e-encryption", "automatic-room-key-forwarding", "rustls-tls", "bundled-sqlite"] }
