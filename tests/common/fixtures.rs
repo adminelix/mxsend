@@ -50,6 +50,10 @@ impl TestContext {
         format!("http://{}:{}", self.host, self.port)
     }
 
+    pub fn admin_token(&self) -> &str {
+        &self.admin_token
+    }
+
     #[allow(dead_code)]
     pub fn port(&self) -> u16 {
         self.port

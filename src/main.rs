@@ -6,7 +6,7 @@ use std::io::{IsTerminal, Read};
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
 use matrix_sdk::ruma::OwnedUserId;
-use mxsend::{MessageSender, Recipient, SendOptions};
+use mxsend::{Interrupted, MessageSender, Recipient, SendOptions};
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::{FilterExt, Targets};
 use tracing_subscriber::fmt;
@@ -93,7 +93,8 @@ fn resolve_message(
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let opts = cli.into_send_options();
 
@@ -118,10 +119,13 @@ fn main() {
         )
         .init();
 
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-    if let Err(e) = rt.block_on(MessageSender::new(opts).send()) {
-        eprintln!("Error: {e}");
-        std::process::exit(1);
+    match MessageSender::new(opts).send().await {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(e) if e.downcast_ref::<Interrupted>().is_some() => std::process::ExitCode::from(130),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::ExitCode::FAILURE
+        }
     }
 }
 

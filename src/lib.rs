@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2026 mxsend contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::error::Error;
+use std::fmt;
+use std::future::Future;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -10,6 +13,9 @@ use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use matrix_sdk::{Client, Room, RoomMemberships, RoomState, config::SyncSettings};
 use tracing::info;
+
+#[cfg(unix)]
+use tokio::signal::unix::{SignalKind, signal};
 
 /// A message recipient — either a user ID (`@user:server`) or a room ID (`!room:server`).
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +50,21 @@ pub struct SendOptions {
     pub verbosity: Verbosity,
     pub message: String,
 }
+
+/// Operation was interrupted by a signal (Ctrl-C / SIGTERM).
+///
+/// Returned by [`MessageSender::send_internal`] when the shutdown signal fires before the
+/// send completes. Use [`anyhow::Error::downcast_ref`] to check for this type.
+#[derive(Debug)]
+pub struct Interrupted;
+
+impl fmt::Display for Interrupted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("interrupted")
+    }
+}
+
+impl Error for Interrupted {}
 
 /// Builder for sending a Matrix message.
 ///
@@ -87,29 +108,83 @@ impl MessageSender {
         self
     }
 
-    /// Execute the full send pipeline: build client, login, sync, verify, send, logout.
-    pub async fn send(self) -> Result<()> {
+    /// Build a Client and log in, if not already authenticated.
+    pub async fn build_client_and_login(&self) -> Result<Client> {
         let client = build_client(&self.from, self.homeserver_url.as_deref()).await?;
-
         if client.session_meta().is_none() {
             login(&client, &self.from, &self.password).await?;
         }
+        Ok(client)
+    }
 
+    /// Send message with an already-authenticated client.
+    pub async fn send_with_client(self, client: &Client) -> Result<()> {
         client
             .sync_once(SyncSettings::default().filter(FilterDefinition::with_lazy_loading().into()))
             .await?;
 
         if let Some(ref recovery_key) = self.recovery_key {
-            verify_session(&client, recovery_key).await?;
+            verify_session(client, recovery_key).await?;
         }
 
-        let result = send_to_recipient(&client, &self.message, &self.to).await;
+        let result = send_to_recipient(client, &self.message, &self.to).await;
 
         client.logout().await?;
         info!("Matrix auth logged out successfully");
 
         result?;
         Ok(())
+    }
+
+    /// Send with a configurable shutdown signal.
+    ///
+    /// When `shutdown` resolves before the send completes, the client is logged out
+    /// and an `"interrupted"` error is returned.
+    pub async fn send_internal(self, shutdown: impl Future<Output = ()>) -> Result<()> {
+        let (from, password, homeserver_url) = (
+            self.from.clone(),
+            self.password.clone(),
+            self.homeserver_url.clone(),
+        );
+
+        let client = build_client(&from, homeserver_url.as_deref()).await?;
+        if client.session_meta().is_none() {
+            login(&client, &from, &password).await?;
+        }
+        let send_client = client.clone();
+
+        tokio::select! {
+            result = self.send_with_client(&send_client) => result,
+            _ = shutdown => {
+                client.logout().await.ok();
+                info!("Matrix auth logged out successfully after interrupt");
+                Err(Interrupted.into())
+            }
+        }
+    }
+
+    /// Execute the full send pipeline: build client, login, sync, verify, send, logout.
+    pub async fn send(self) -> Result<()> {
+        self.send_internal(shutdown_signal()).await
+    }
+}
+
+/// Wait for SIGINT (Ctrl-C) or SIGTERM (Unix only).
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        if let Ok(mut sigterm) = signal(SignalKind::terminate()) {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = sigterm.recv() => {},
+            }
+        } else {
+            let _ = tokio::signal::ctrl_c().await;
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
     }
 }
 
