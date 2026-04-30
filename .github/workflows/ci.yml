@@ -94,7 +94,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME}"
           mkdir -p releases
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [[ "${{ matrix.target }}" == *-windows-* ]]; then
             cp "target/${{ matrix.target }}/release/mxsend.exe" "releases/mxsend-${VERSION}-${{ matrix.target }}.exe"
           else
             cp "target/${{ matrix.target }}/release/mxsend" "releases/mxsend-${VERSION}-${{ matrix.target }}"
