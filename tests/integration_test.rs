@@ -615,4 +615,44 @@ mod tests {
 
         creator_client.logout().await.ok();
     }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_internal_interrupted_by_shutdown_signal() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+
+        let sender_id = UserId::parse(&sender_id_str).expect("valid user id");
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should be interrupted".to_string(),
+        };
+
+        let sender = mxsend::MessageSender::new(opts).with_homeserver(&ctx.homeserver_url());
+
+        // Fire signal before starting — oneshot buffers it, select picks it after login
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        tx.send(()).unwrap();
+
+        let result = sender
+            .send_internal(async {
+                let _ = rx.await;
+            })
+            .await;
+
+        assert!(result.is_err(), "Expected interrupt error, got success");
+        assert!(
+            result.unwrap_err().to_string().contains("interrupted"),
+            "Expected 'interrupted' in error message"
+        );
+    }
 }
