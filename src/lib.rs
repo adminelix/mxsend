@@ -4,7 +4,6 @@
 use std::str::FromStr;
 
 use anyhow::Result;
-use clap::Parser;
 use clap_verbosity_flag::Verbosity;
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
@@ -13,7 +12,7 @@ use matrix_sdk::{Client, Room, RoomMemberships, RoomState, config::SyncSettings}
 use tracing::info;
 
 /// A message recipient — either a user ID (`@user:server`) or a room ID (`!room:server`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Recipient {
     User(OwnedUserId),
     Room(OwnedRoomId),
@@ -35,47 +34,14 @@ impl FromStr for Recipient {
     }
 }
 
-/// CLI options parsed by [`clap`].
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+/// Options for sending a Matrix message.
+#[derive(Debug)]
 pub struct SendOptions {
-    /// Sender's Matrix user ID (e.g. @alice:server.com)
-    #[arg(
-        long = "from",
-        short = 'f',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_FROM")
-    )]
     pub from: OwnedUserId,
-
-    /// Sender's account password for login
-    #[arg(
-        long = "password",
-        short = 'p',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_PASSWORD")
-    )]
     pub password: String,
-
-    /// The recipient — a Matrix user ID (@user:server) or room ID (!room:server)
-    #[arg(
-        long = "to",
-        short = 't',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_TO")
-    )]
     pub to: Recipient,
-
-    /// Recovery key to verify the sender's E2EE device (optional)
-    #[arg(
-        long = "recovery-key",
-        short = 'k',
-        env = concat!(env!("CARGO_PKG_NAME_UPPERCASE"), "_RECOVERY_KEY")
-    )]
     pub recovery_key: Option<String>,
-
-    /// Verbosity level (use -v, -vv, -vvv, or -q to suppress output)
-    #[command(flatten)]
     pub verbosity: Verbosity,
-
-    /// Plain text message body to send
     pub message: String,
 }
 
@@ -103,7 +69,7 @@ pub struct MessageSender {
 }
 
 impl MessageSender {
-    /// Create a new sender from CLI arguments.
+    /// Create a new sender from options.
     pub fn new(opts: SendOptions) -> Self {
         Self {
             from: opts.from,
