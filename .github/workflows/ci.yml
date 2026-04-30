@@ -1,5 +1,14 @@
 name: CI
 
+# Pipeline & release process:
+#
+#   PR → main         check → test → security
+#   Push → main        check → test → security → build
+#   Tag v*             check → test → security → build → release
+#
+# Release: push a tag matching v* (or create a release on GitHub).
+# Binaries for 5 targets are built and uploaded as release assets.
+# Tag example: git tag v0.1.0 && git push origin v0.1.0
 on:
   push:
     branches: [main]
@@ -121,3 +130,4 @@ jobs:
         with:
           files: releases/*
           generate_release_notes: true
+          update_release: true
