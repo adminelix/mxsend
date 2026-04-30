@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 mxsend contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::str::FromStr;
 
 use anyhow::Result;
