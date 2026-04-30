@@ -49,6 +49,22 @@ The binary will be available at `target/release/mxsend`.
 cargo install --path .
 ```
 
+### Install latest Linux release
+
+Download the pre-built binary directly from GitHub:
+
+```bash
+# x86_64 (Intel/AMD)
+sudo curl -L -o /usr/local/bin/mxsend \
+  https://github.com/adminelix/mxsend/releases/latest/download/mxsend-x86_64-unknown-linux-gnu
+sudo chmod +x /usr/local/bin/mxsend
+
+# aarch64 (ARM64)
+sudo curl -L -o /usr/local/bin/mxsend \
+  https://github.com/adminelix/mxsend/releases/latest/download/mxsend-aarch64-unknown-linux-gnu
+sudo chmod +x /usr/local/bin/mxsend
+```
+
 ## Usage
 
 ### Command line
@@ -96,6 +112,18 @@ mxsend \
   "Sensitive alert: unauthorized access detected."
 ```
 
+### Send file contents
+
+Read a file into the message body using command substitution:
+
+```bash
+mxsend \
+  -f "@bot:example.com" \
+  -p "s3cr3t" \
+  -t "@admin:example.com" \
+  "$(cat /var/log/backup-status.txt)"
+```
+
 ## Development
 
 ```bash
@@ -113,44 +141,6 @@ cargo fmt
 
 # Linting
 cargo clippy
-```
-
-### Local container testing
-
-Each CI stage can be run locally via podman using the `scripts/Containerfile.*` files:
-
-```bash
-# Check stage (fmt, clippy, check, doc)
-podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-check
-
-# Test stage (mounts host podman socket for testcontainers)
-podman run --rm \
-  -v $(pwd):/workspace:Z \
-  -v $HOME/.local/share/containers/podman/machine/podman.sock:/var/run/docker.sock:Z \
-  localhost/mxsend-test
-
-# Security stage (cargo audit, cargo deny)
-podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-security
-
-# Build stage — native Linux x86_64
-podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-build-linux-x86_64
-
-# Build stage — cross-compile Linux ARM64
-podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-build-linux-aarch64
-
-# Build stage — cross-compile Windows x86_64
-podman run --rm -v $(pwd):/workspace:Z localhost/mxsend-build-windows-x86_64
-```
-
-Build the images first with:
-
-```bash
-podman build -f scripts/Containerfile.check -t mxsend-check .
-podman build -f scripts/Containerfile.test -t mxsend-test .
-podman build -f scripts/Containerfile.security -t mxsend-security .
-podman build -f scripts/Containerfile.build-linux-x86_64 -t mxsend-build-linux-x86_64 .
-podman build -f scripts/Containerfile.build-linux-aarch64 -t mxsend-build-linux-aarch64 .
-podman build -f scripts/Containerfile.build-windows-x86_64 -t mxsend-build-windows-x86_64 .
 ```
 
 ## Contributing
