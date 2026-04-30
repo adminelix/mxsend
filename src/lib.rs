@@ -53,7 +53,7 @@ pub struct SendOptions {
 
 /// Operation was interrupted by a signal (Ctrl-C / SIGTERM).
 ///
-/// Returned by [`send_internal`] when the shutdown signal fires before the
+/// Returned by [`MessageSender::send_internal`] when the shutdown signal fires before the
 /// send completes. Use [`anyhow::Error::downcast_ref`] to check for this type.
 #[derive(Debug)]
 pub struct Interrupted;
