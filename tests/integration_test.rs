@@ -650,9 +650,34 @@ mod tests {
             .await;
 
         assert!(result.is_err(), "Expected interrupt error, got success");
+        let err = result.unwrap_err();
         assert!(
-            result.unwrap_err().to_string().contains("interrupted"),
-            "Expected 'interrupted' in error message"
+            err.downcast_ref::<mxsend::Interrupted>().is_some(),
+            "Expected Interrupted error, got: {err}"
+        );
+
+        // Verify the device was removed from the server by querying the admin API
+        #[derive(serde::Deserialize)]
+        struct DeviceList {
+            devices: Vec<serde_json::Value>,
+        }
+
+        let url = format!(
+            "{}/_synapse/admin/v2/users/{}/devices",
+            ctx.homeserver_url(),
+            urlencoding::encode(&sender_id_str),
+        );
+        let response = reqwest::Client::new()
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", ctx.admin_token()))
+            .send()
+            .await
+            .expect("Failed to query devices");
+        let devices: DeviceList = response.json().await.expect("Failed to parse device list");
+        assert!(
+            devices.devices.is_empty(),
+            "Expected no devices after logout, found: {:?}",
+            devices.devices,
         );
     }
 }

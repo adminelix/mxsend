@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 mxsend contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::error::Error;
+use std::fmt;
 use std::future::Future;
 use std::str::FromStr;
 
@@ -48,6 +50,21 @@ pub struct SendOptions {
     pub verbosity: Verbosity,
     pub message: String,
 }
+
+/// Operation was interrupted by a signal (Ctrl-C / SIGTERM).
+///
+/// Returned by [`send_internal`] when the shutdown signal fires before the
+/// send completes. Use [`anyhow::Error::downcast_ref`] to check for this type.
+#[derive(Debug)]
+pub struct Interrupted;
+
+impl fmt::Display for Interrupted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("interrupted")
+    }
+}
+
+impl Error for Interrupted {}
 
 /// Builder for sending a Matrix message.
 ///
@@ -141,7 +158,7 @@ impl MessageSender {
             _ = shutdown => {
                 client.logout().await.ok();
                 info!("Matrix auth logged out successfully after interrupt");
-                Err(anyhow::anyhow!("interrupted"))
+                Err(Interrupted.into())
             }
         }
     }
