@@ -1,38 +1,97 @@
 # Changelog
+## [v0.1.0-beta.2] - 2026-05-04
 
-All notable changes to this project will be documented in this file.
+### Features
+- add room member filter to sync settings for lazy loading
+- add session management and dependency updates for Matrix client
+- switch to a data_dir with default
+- provide env vars for configuration
+- enable e2e-encryption and add recovery key option
+- add CLI logging with -v/-vv verbosity flags
+- implement sending messages to room IDs
+- generate release notes from conventional commits via git-cliff
+- support stdin as message source
+- graceful logout on SIGINT/SIGTERM during send
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Bug Fixes
+- prevent duplicate DM rooms on multiple runs
+- replace hardcoded localhost with container host and dynamic server_name
+- escape newlines properly in release description
+- detect Windows target by triple in artifact packaging
+- use body_path for release notes to avoid YAML escaping issues
 
-## [Unreleased]
+<details>
+<summary>Other</summary>
 
-### Added
+### CI
+- add GitLab CI configuration
+- add GitLab CI pipeline with cross-compilation and release automation
+- use conditional install for cargo-audit and cargo-deny
+- cache cargo metadata files to fix reinstall errors
+- use --force flag for cargo-audit and cargo-deny installs
+- add GitLab pipeline with cross-compilation
+- add GitLab pipeline with cross-compilation
+- pre-build custom image with tools, move Docker env to runner config
+- move build-ci-image to prepare stage
+- add macOS darwin cross-compilation builds
+- add explicit linker for macOS cross-compilation targets
+- remove trailing whitespace breaking shell line continuation in release job
+- migrate from GitLab CI to GitHub Actions
+- fail pipeline on cargo audit findings
+- upgrade intel mac runner from macos-13 to macos-26
+- upgrade arm mac runner from macos-latest to macos-26
+- add Dependabot config for weekly dependency updates
 
-- GitLab CI pipeline with 6 stages: check, test, secret-detection, security, build, release.
-- Cross-compiled release binaries for Linux x86_64, Linux ARM64, and Windows x86_64 (MinGW).
-- Local podman-based testing via `scripts/Containerfile.*`.
-- License audit with `cargo-deny` and vulnerability scanning with `cargo-audit`.
-- Dual licensing under MIT OR Apache-2.0.
+### Chores
+- initial commit
+- rename project to matrix-send
+- add .gitignore
+- remove accidentally committed .idea folder
+- update dependencies
+- bump version to 0.1.0-rc.1
+- add Unicode-3.0 and BSL-1.0 to cargo-deny license allowlist
+- add NOTICE file and SPDX headers for license compliance
+- bump actions/checkout from 4 to 6
+- bump actions/upload-artifact from 4 to 7
+- bump softprops/action-gh-release from 2 to 3
+- bump actions/download-artifact from 4 to 8
+- bump version to 0.1.0-beta.1
+- bump version to 0.1.0-beta.2
 
-### Changed
+### Documentation
+- add README
+- update project description
+- rewrite README with project purpose and usage guide
+- add pipeline overview comment, enable release update
+- simplify README and unversion release artifacts
+- note pre-release promotion requirement in CI header
+- fix broken intra-doc link to MessageSender::send_internal
 
-- Switched `matrix-sdk` from `native-tls` to `rustls-tls` + `bundled-sqlite` for portable cross-compilation.
-- Pinned Rust toolchain to 1.93.1 to work around matrix-sdk query depth overflow.
+### Refactor
+- improve code structure and error handling for room determination and message sending
+- streamline CLI argument descriptions and session restoration logic
+- remove unused import of url
+- find proper function name
+- improve error handling and avoid panics
+- improve session management and env variable usage in build script and main code
+- split lib/bin crate and improve code quality
+- redesign lib API with MessageSender builder, Recipient enum, and SendOptions
+- rename variables for clarity and consistency
+- move serial annotation from module to individual tests
+- clean up public API and file ordering
+- rename project to mxsend
+- use typed Interrupted error and admin API test verification
 
-## [0.1.0] - 2026-04-27
+### Styling
+- format code
 
-### Added
+### Testing
+- add integration test with synapse testcontainers
 
-- Initial release of `mxsend`.
-- Command-line interface for sending Matrix messages.
-- Support for direct messages (DM) and room messages.
-- Optional end-to-end encryption (E2EE) via recovery key.
-- Environment variable configuration (`MXSEND_*`).
-- Cross-platform support (Linux x86_64/ARM64, Windows x86_64).
+### Build
+- update CLI parsing from structopt to clap and add new dependencies
+- configure optimized release and development profiles
+- bump dependencies (tokio 1.52, clap 4.6, anyhow 1.0.102, reqwest 0.13, serial_test 3.4)
+</details>
 
-## [0.1.0] - 2026-04-27
-
-### Added
-
-- First stable release.
+<!-- generated by git-cliff -->
