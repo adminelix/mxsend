@@ -185,4 +185,5 @@ dual licensed as above, without any additional terms or conditions.
 
 - **Repository:** https://github.com/adminelix/mxsend
 - **Releases:** https://github.com/adminelix/mxsend/releases
+- **Release process:** See [RELEASE.md](RELEASE.md)
 

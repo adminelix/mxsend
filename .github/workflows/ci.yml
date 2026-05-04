@@ -140,5 +140,5 @@ jobs:
         with:
           files: releases/*
           body_path: RELEASE_NOTES.md
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: true
           update_release: true
