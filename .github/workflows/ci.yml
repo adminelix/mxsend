@@ -1,16 +1,10 @@
 name: CI
 
-# Pipeline & release process:
+# Pipeline triggers:
 #
 #   PR → main         check → test → security
 #   Push → main        check → test → security → build
-#   Tag v*             check → test → security → build → release
-#
-# Release: push a tag matching v* (or create a release on GitHub).
-# Binaries for 5 targets are built and uploaded as release assets.
-# Tag example: git tag v0.1.0 && git push origin v0.1.0
-# Note: tags containing "-" (e.g. v0.1.0-rc.1) create a pre-release.
-#       A pre-release must be manually promoted to a full release on GitHub.
+#   Tag v*             check → test → security → build → release (always pre-release)
 on:
   push:
     branches: [main]
