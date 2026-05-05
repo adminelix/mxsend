@@ -2648,6 +2648,7 @@ dependencies = [
  "clap",
  "clap-verbosity-flag",
  "env_logger",
+ "http",
  "matrix-sdk",
  "reqwest 0.13.3",
  "serde",
