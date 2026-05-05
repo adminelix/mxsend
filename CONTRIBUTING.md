@@ -2,6 +2,15 @@
 
 Thank you for your interest in contributing to `mxsend`!
 
+## Git Workflow
+
+This project follows the [OneFlow](https://www.oneflow.org/) branching model:
+
+- **`main`** is the default branch and the only long-lived branch. It is protected on GitHub — all changes must go through a pull request.
+- Feature branches are created from `main` and merge back into `main` (prefer `--rebase` to keep history linear).
+- No `develop` branch — `main` always reflects the latest delivered state.
+- Release branches tag from `main`; hotfix branches branch from the tag and merge back to `main`.
+
 ## Getting Started
 
 1. Fork the repository.
