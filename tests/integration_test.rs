@@ -680,4 +680,269 @@ mod tests {
             devices.devices,
         );
     }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_to_nonexistent_user_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let nonexistent_id = UserId::parse("@nonexistent_user:localhost").expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(nonexistent_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for non-existent user");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("does not exist"),
+            "Error should mention user does not exist, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_to_nonexistent_room_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let nonexistent_room_id =
+            matrix_sdk::ruma::RoomId::parse("!nonexistent_room:localhost").expect("valid room id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::Room(nonexistent_room_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for non-existent room");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("does not exist"),
+            "Error should mention room does not exist, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_with_nonexistent_sender_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+        let nonexistent_sender =
+            UserId::parse("@nonexistent_sender:localhost").expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: nonexistent_sender,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for non-existent sender");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("authentication failed for @nonexistent_sender:localhost"),
+            "Error should mention failed authentication for the sender, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_with_wrong_password_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id.clone(),
+            password: "wrong_password".to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for wrong password");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains(&format!("authentication failed for {sender_id}")),
+            "Error should mention failed authentication for the sender, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_with_wrong_recovery_key_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: Some("this_is_not_a_real_recovery_key".to_string()),
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for wrong recovery key");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("recovery key verification failed"),
+            "Error should mention recovery key verification, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_with_corrupted_recovery_key_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, recovery_key) = bootstrap_sender_with_recovery(&ctx).await;
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+
+        // Replace last character with `_` — not in base58 alphabet, so parsing fails deterministically
+        let bad_key = format!("{}_", &recovery_key[..recovery_key.len() - 1]);
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: Some(bad_key),
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for corrupted recovery key");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("recovery key verification failed"),
+            "Error should mention recovery key verification, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_with_unreachable_server_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+        let sender_id = UserId::parse("@user:invalid.example.com").expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        let result = mxsend::MessageSender::new(opts)
+            .with_homeserver("http://foo.bar")
+            .send()
+            .await;
+
+        assert!(result.is_err(), "Expected error for unreachable server");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("authentication failed for"),
+            "Error should mention authentication failure, got: {err}"
+        );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_send_message_with_nonexistent_server_name_returns_error() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (recipient_id_str, _) = create_test_user(&ctx, "recipient").await;
+        let recipient_id = UserId::parse(&recipient_id_str).expect("valid user id");
+        let sender_id = UserId::parse("@user:nonexistent.invalid").expect("valid user id");
+
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(recipient_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "Should not be sent".to_string(),
+        };
+
+        // No with_homeserver — triggers auto-discovery during build()
+        let result = mxsend::MessageSender::new(opts).send().await;
+
+        assert!(
+            result.is_err(),
+            "Expected error for non-existent server name"
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("could not reach"),
+            "Error should mention could not reach server, got: {err}"
+        );
+    }
 }

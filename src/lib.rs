@@ -6,6 +6,7 @@ use std::fmt;
 use std::future::Future;
 use std::str::FromStr;
 
+use anyhow::Context;
 use anyhow::Result;
 use clap_verbosity_flag::Verbosity;
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
@@ -201,7 +202,17 @@ pub async fn build_client(from: &UserId, homeserver_url: Option<&str>) -> Result
         builder.server_name_or_homeserver_url(from.server_name())
     };
 
-    Ok(builder.build().await?)
+    let client = builder.build().await.with_context(|| {
+        if let Some(url) = homeserver_url {
+            format!("failed to connect to homeserver at {url}")
+        } else {
+            format!(
+                "could not reach {server} — the server name in your Matrix ID may be wrong, or the server is offline",
+                server = from.server_name(),
+            )
+        }
+    })?;
+    Ok(client)
 }
 
 /// Resolve a [`Recipient`] to a concrete [`Room`].
@@ -222,7 +233,18 @@ async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room> {
                         .ok_or_else(|| anyhow::anyhow!("room {room_id} not found after join"))
                 }
             } else {
-                client.join_room_by_id(room_id).await.map_err(Into::into)
+                match client.join_room_by_id(room_id).await {
+                    Ok(room) => Ok(room),
+                    Err(err) => {
+                        if err
+                            .as_client_api_error()
+                            .is_some_and(|e| e.status_code == http::StatusCode::NOT_FOUND)
+                        {
+                            anyhow::bail!("room {room_id} does not exist on the server");
+                        }
+                        anyhow::bail!("failed to join room {room_id}: {err}");
+                    }
+                }
             }
         }
     }
@@ -241,12 +263,18 @@ async fn login(client: &Client, from: &OwnedUserId, password: &str) -> Result<()
         .matrix_auth()
         .login_username(from, password)
         .send()
-        .await?;
+        .await
+        .with_context(|| format!("authentication failed for {from}"))?;
     Ok(())
 }
 
 async fn verify_session(client: &Client, recovery_key: &str) -> Result<()> {
-    client.encryption().recovery().recover(recovery_key).await?;
+    client
+        .encryption()
+        .recovery()
+        .recover(recovery_key)
+        .await
+        .with_context(|| "recovery key verification failed")?;
     info!("Successfully verified session using recovery key");
     Ok(())
 }
@@ -283,6 +311,19 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
 
     if let Some(room) = candidate_room {
         return Ok(room);
+    }
+
+    match client.account().fetch_user_profile_of(user_id).await {
+        Ok(_) => {}
+        Err(err) => {
+            if err
+                .as_client_api_error()
+                .is_some_and(|e| e.status_code == http::StatusCode::NOT_FOUND)
+            {
+                anyhow::bail!("recipient user {user_id} does not exist on the server");
+            }
+            anyhow::bail!("failed to verify recipient user {user_id}: {err}");
+        }
     }
 
     let new_room = client.create_dm(user_id.as_ref()).await?;
