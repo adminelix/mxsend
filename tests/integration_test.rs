@@ -8,6 +8,7 @@ mod common;
 mod tests {
     use super::common::{SyncThread, TestContext, get_shared_context};
     use matrix_sdk::Room;
+    use matrix_sdk::RoomState;
     use matrix_sdk::deserialized_responses::{EncryptionInfo, VerificationState};
     use matrix_sdk::encryption::EncryptionSettings;
     use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
@@ -1010,5 +1011,112 @@ mod tests {
             err.contains("could not reach"),
             "Error should mention could not reach server, got: {err}"
         );
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn test_custom_room_not_mistaken_for_dm() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id_str, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id_str, DEFAULT_PASSWORD).await;
+
+        let sender_id = UserId::parse(&sender_id_str).expect("valid sender id");
+        let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
+
+        // Login sender manually to create a custom room
+        let sender_client = mxsend::build_client(&sender_id, Some(&ctx.homeserver_url()))
+            .await
+            .expect("Failed to build sender client");
+        login(&sender_client, &sender_id_str, DEFAULT_PASSWORD).await;
+
+        // Setup receiver handlers and start sync before room creation
+        let state = Arc::new(RwLock::new(ReceiverState::default()));
+        setup_receiver_handlers(&receiver_client, &state);
+        let mut sync_thread = SyncThread::start(receiver_client.clone());
+
+        // Create a custom room (non-DM) with both users
+        let mut create_request =
+            matrix_sdk::ruma::api::client::room::create_room::v3::Request::default();
+        create_request.preset =
+            Some(matrix_sdk::ruma::api::client::room::create_room::v3::RoomPreset::PrivateChat);
+        create_request.invite = vec![receiver_id.clone()];
+        create_request.name = Some("Custom Room".to_string());
+        // Note: is_direct is NOT set — this is a custom room, not a DM
+
+        let custom_room = sender_client
+            .create_room(create_request)
+            .await
+            .expect("Failed to create custom room");
+        let custom_room_id = custom_room.room_id().to_owned();
+
+        // Wait for receiver to join the custom room
+        let deadline = tokio::time::Instant::now() + TIMEOUT;
+        let mut receiver_joined = false;
+        while tokio::time::Instant::now() < deadline {
+            if let Some(room) = receiver_client.get_room(&custom_room_id) {
+                if room.state() == RoomState::Joined {
+                    receiver_joined = true;
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        assert!(
+            receiver_joined,
+            "Receiver should have joined the custom room"
+        );
+
+        // Reset receiver state before sending
+        {
+            let mut guard = state.write().await;
+            guard.invite_received = false;
+            guard.message_received = false;
+            guard.message_body = None;
+            guard.room_id = None;
+        }
+
+        // Send message to the recipient via mxsend (should create a new DM room)
+        let opts = mxsend::SendOptions {
+            from: sender_id,
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: "DM message to recipient".to_string(),
+        };
+
+        mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await
+            .expect("Send failed");
+
+        // Wait for receiver to get the message
+        wait_for_message(&state, false).await;
+        sync_thread.stop();
+
+        // Verify the message was sent to a new DM room, NOT the custom room
+        let guard = state.read().await;
+        assert!(
+            guard.message_received,
+            "Receiver should have received a message"
+        );
+        assert!(
+            guard.invite_received,
+            "Receiver should have received an invite to a new DM room"
+        );
+        let dm_room_id = guard
+            .room_id
+            .as_ref()
+            .expect("Should have a room ID for the DM room");
+        assert_ne!(
+            *dm_room_id, custom_room_id,
+            "Message should be sent to a DM room, not the custom room"
+        );
+
+        receiver_client.logout().await.ok();
     }
 }
