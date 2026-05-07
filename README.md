@@ -9,6 +9,7 @@
 ## Features
 
 - **Stateless** — No local credential cache, E2EE store, or config files. Every run is independent.
+- **Markdown formatting** — Messages are rendered as Markdown by default. Use `--plain` to send unformatted text.
 - **Cross-platform** — Single static Rust binary. Runs on any platform supported by the Rust toolchain.
 - **Direct messages & rooms** — Send to a user ID (`@user:server`) to auto-create or reuse a DM, or target a room ID (`!room:server`) directly.
 - **End-to-end encryption** — Optional E2EE support via recovery key verification.
@@ -110,6 +111,29 @@ mxsend \
   -t "@admin:example.com" \
   -k "YOUR_RECOVERY_KEY" \
   "Sensitive alert: unauthorized access detected."
+```
+
+### Markdown formatting
+
+Messages are rendered as Markdown by default. Bold, italic, inline code, links, and lists will be formatted in supporting Matrix clients:
+
+```bash
+mxsend \
+  -f "@bot:example.com" \
+  -p "s3cr3t" \
+  -t "@admin:example.com" \
+  "Deployment *failed* on **prod** — check \`journalctl\` for details."
+```
+
+Pass `--plain` to disable Markdown and send the message verbatim:
+
+```bash
+mxsend \
+  -f "@bot:example.com" \
+  -p "s3cr3t" \
+  -t "@admin:example.com" \
+  --plain \
+  "Error: status = 500 (not **bold**, this is literal)"
 ```
 
 ### Send file contents

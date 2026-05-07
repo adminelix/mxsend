@@ -36,8 +36,11 @@ struct Cli {
     #[command(flatten)]
     verbosity: Verbosity,
 
-    /// Plain text message body to send.
-    /// If omitted, the message is read from stdin (e.g. via pipe).
+    /// Disable markdown rendering, send as plain text only
+    #[arg(long = "plain")]
+    plain: bool,
+
+    /// message body (Markdown by default) to send. If omitted, the message is read from stdin (e.g. via pipe)
     message: Option<String>,
 }
 
@@ -96,6 +99,7 @@ fn resolve_message(
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
+    let plain = cli.plain;
     let opts = cli.into_send_options();
 
     let verbosity_level = opts.verbosity.tracing_level_filter();
@@ -119,7 +123,10 @@ async fn main() -> std::process::ExitCode {
         )
         .init();
 
-    match MessageSender::new(opts).send().await {
+    let sender = MessageSender::new(opts);
+    let sender = if plain { sender.as_plain() } else { sender };
+
+    match sender.send().await {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) if e.downcast_ref::<Interrupted>().is_some() => std::process::ExitCode::from(130),
         Err(e) => {
@@ -187,10 +194,42 @@ mod tests {
             recovery_key: None,
             verbosity: Default::default(),
             message: Some("test message".into()),
+            plain: false,
         };
         let opts = cli.into_send_options();
         assert_eq!(opts.message, "test message");
         assert_eq!(opts.from.to_string(), "@u:localhost");
         assert_eq!(opts.to, Recipient::User("@r:localhost".try_into().unwrap()));
+    }
+
+    #[test]
+    fn test_cli_plain_flag_defaults_to_false() {
+        let cli = Cli::parse_from([
+            "mxsend",
+            "--from",
+            "@u:localhost",
+            "--password",
+            "pass",
+            "--to",
+            "@r:localhost",
+            "hello",
+        ]);
+        assert!(!cli.plain);
+    }
+
+    #[test]
+    fn test_cli_plain_flag_can_be_set() {
+        let cli = Cli::parse_from([
+            "mxsend",
+            "--from",
+            "@u:localhost",
+            "--password",
+            "pass",
+            "--to",
+            "@r:localhost",
+            "--plain",
+            "hello",
+        ]);
+        assert!(cli.plain);
     }
 }

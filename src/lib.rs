@@ -88,6 +88,7 @@ pub struct MessageSender {
     message: String,
     recovery_key: Option<String>,
     homeserver_url: Option<String>,
+    plain: bool,
 }
 
 impl MessageSender {
@@ -100,7 +101,14 @@ impl MessageSender {
             message: opts.message,
             recovery_key: opts.recovery_key,
             homeserver_url: None,
+            plain: false,
         }
+    }
+
+    /// Send as plain text without markdown rendering.
+    pub fn as_plain(mut self) -> Self {
+        self.plain = true;
+        self
     }
 
     /// Override the homeserver URL instead of auto-discovering it.
@@ -128,7 +136,7 @@ impl MessageSender {
             verify_session(client, recovery_key).await?;
         }
 
-        let result = send_to_recipient(client, &self.message, &self.to).await;
+        let result = send_to_recipient(client, &self.message, &self.to, self.plain).await;
 
         client.logout().await?;
         info!("Matrix auth logged out successfully");
@@ -250,9 +258,22 @@ async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room> {
     }
 }
 
-async fn send_to_recipient(client: &Client, message: &str, recipient: &Recipient) -> Result<()> {
+fn build_message_content(message: &str, plain: bool) -> RoomMessageEventContent {
+    if plain {
+        RoomMessageEventContent::text_plain(message)
+    } else {
+        RoomMessageEventContent::text_markdown(message)
+    }
+}
+
+async fn send_to_recipient(
+    client: &Client,
+    message: &str,
+    recipient: &Recipient,
+    plain: bool,
+) -> Result<()> {
     let room = resolve_room(client, recipient).await?;
-    let content = RoomMessageEventContent::text_plain(message);
+    let content = build_message_content(message, plain);
     room.send(content).await?;
     info!("Message sent successfully!");
     Ok(())
@@ -329,4 +350,39 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
     let new_room = client.create_dm(user_id.as_ref()).await?;
     info!("Created new DM room");
     Ok(new_room)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use matrix_sdk::ruma::events::room::message::MessageType;
+
+    #[test]
+    fn test_build_message_content_default_is_markdown() {
+        let content = build_message_content("**bold**", false);
+        if let MessageType::Text(text) = &content.msgtype {
+            assert_eq!(text.body, "**bold**");
+            let formatted = text
+                .formatted
+                .as_ref()
+                .expect("markdown should have formatted body");
+            assert!(formatted.body.contains("<strong>bold</strong>"));
+        } else {
+            panic!("Expected Text message type");
+        }
+    }
+
+    #[test]
+    fn test_build_message_content_plain_has_no_formatting() {
+        let content = build_message_content("**bold**", true);
+        if let MessageType::Text(text) = &content.msgtype {
+            assert_eq!(text.body, "**bold**");
+            assert!(
+                text.formatted.is_none(),
+                "plain content should not have formatted body"
+            );
+        } else {
+            panic!("Expected Text message type");
+        }
+    }
 }
