@@ -1,5 +1,5 @@
 # Changelog
-## [v0.1.0-beta.2] - 2026-05-04
+## [v0.1.0] - 2026-05-07
 
 ### Features
 - add room member filter to sync settings for lazy loading
@@ -12,6 +12,8 @@
 - generate release notes from conventional commits via git-cliff
 - support stdin as message source
 - graceful logout on SIGINT/SIGTERM during send
+- validate recipient existence before sending
+- render messages as Markdown by default with --plain flag
 
 ### Bug Fixes
 - prevent duplicate DM rooms on multiple runs
@@ -41,6 +43,8 @@
 - upgrade intel mac runner from macos-13 to macos-26
 - upgrade arm mac runner from macos-latest to macos-26
 - add Dependabot config for weekly dependency updates
+- add caching to speed up GitHub Actions workflow
+- skip cargo install on cache hit in security job
 
 ### Chores
 - initial commit
@@ -57,6 +61,7 @@
 - bump actions/download-artifact from 4 to 8
 - bump version to 0.1.0-beta.1
 - bump version to 0.1.0-beta.2
+- add release process documentation and tooling
 
 ### Documentation
 - add README
@@ -66,6 +71,8 @@
 - simplify README and unversion release artifacts
 - note pre-release promotion requirement in CI header
 - fix broken intra-doc link to MessageSender::send_internal
+- simplify CI pipeline header comment
+- document OneFlow branching model in contributing guide
 
 ### Refactor
 - improve code structure and error handling for room determination and message sending
