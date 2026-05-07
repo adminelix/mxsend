@@ -1056,11 +1056,11 @@ mod tests {
         let deadline = tokio::time::Instant::now() + TIMEOUT;
         let mut receiver_joined = false;
         while tokio::time::Instant::now() < deadline {
-            if let Some(room) = receiver_client.get_room(&custom_room_id) {
-                if room.state() == RoomState::Joined {
-                    receiver_joined = true;
-                    break;
-                }
+            if let Some(room) = receiver_client.get_room(&custom_room_id)
+                && room.state() == RoomState::Joined
+            {
+                receiver_joined = true;
+                break;
             }
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
