@@ -312,7 +312,7 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
         let members = room.members(RoomMemberships::ACTIVE).await?;
         let recipient_is_member = members.iter().any(|m| m.user_id() == user_id);
 
-        if recipient_is_member && members.len() == 2 {
+        if recipient_is_member && members.len() == 2 && room.is_direct().await.unwrap_or(false) {
             match candidate_room {
                 None => {
                     candidate_room = Some(room);
@@ -323,7 +323,10 @@ async fn resolve_dm_room(client: &Client, user_id: &OwnedUserId) -> Result<Room>
                     info!("Cleaned up duplicate DM room");
                 }
             }
-        } else if !recipient_is_member && members.len() == 1 {
+        } else if !recipient_is_member
+            && members.len() == 1
+            && room.is_direct().await.unwrap_or(false)
+        {
             room.leave().await?;
             room.forget().await?;
             info!("Cleaned up stale DM room (recipient left)");
