@@ -28,6 +28,7 @@ mod tests {
         room_id: Option<OwnedRoomId>,
         message_received: bool,
         message_body: Option<String>,
+        message_formatted_body: Option<String>,
         message_verified: bool,
         verification_level: Option<matrix_sdk::deserialized_responses::VerificationLevel>,
     }
@@ -81,14 +82,18 @@ mod tests {
                 async move {
                     if let SyncRoomMessageEvent::Original(original) = ev
                         && let matrix_sdk::ruma::events::room::message::MessageType::Text(
-                            TextMessageEventContent { body, .. },
+                            TextMessageEventContent { body, formatted, .. },
                         ) = original.content.msgtype
                     {
                         println!("[Receiver] Received message: {body}");
+                        if let Some(ref fb) = formatted {
+                            println!("[Receiver] Formatted body: {}", fb.body);
+                        }
                         println!("[Receiver] Encryption info: {:?}", encryption_info);
                         let mut guard = state.write().await;
                         guard.message_received = true;
                         guard.message_body = Some(body);
+                        guard.message_formatted_body = formatted.map(|fb| fb.body);
                         guard.room_id = Some(room.room_id().to_owned());
                         // Track if message was from a verified device
                         guard.message_verified = encryption_info
@@ -259,6 +264,66 @@ mod tests {
 
     #[serial_test::serial]
     #[tokio::test]
+    async fn test_send_markdown_message_renders_html() {
+        let _ = env_logger::try_init();
+        let ctx = get_shared_context().await;
+
+        let (sender_id_str, _) = create_test_user(&ctx, "sender").await;
+        let (receiver_id_str, receiver_client) = create_test_user(&ctx, "receiver").await;
+        login(&receiver_client, &receiver_id_str, DEFAULT_PASSWORD).await;
+
+        let state = Arc::new(RwLock::new(ReceiverState::default()));
+        setup_receiver_handlers(&receiver_client, &state);
+        let mut sync_thread = SyncThread::start(receiver_client.clone());
+
+        let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
+        let markdown_msg = "**bold** and *italic*";
+        let opts = mxsend::SendOptions {
+            from: UserId::parse(&sender_id_str).expect("valid sender id"),
+            password: DEFAULT_PASSWORD.to_string(),
+            to: Recipient::User(receiver_id),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: markdown_msg.to_string(),
+        };
+
+        mxsend::MessageSender::new(opts)
+            .with_homeserver(&ctx.homeserver_url())
+            .send()
+            .await
+            .expect("Failed to send markdown message");
+
+        wait_for_message(&state, false).await;
+        sync_thread.stop();
+
+        let guard = state.read().await;
+        assert!(
+            guard.message_received,
+            "Receiver should have received a message"
+        );
+        assert_eq!(
+            guard.message_body.as_deref(),
+            Some(markdown_msg),
+            "Body should contain raw markdown"
+        );
+        let formatted = guard
+            .message_formatted_body
+            .as_ref()
+            .expect("Markdown message should have formatted body");
+        assert!(
+            formatted.contains("<strong>bold</strong>"),
+            "Bold should be rendered as HTML: {formatted}"
+        );
+        assert!(
+            formatted.contains("<em>italic</em>"),
+            "Italic should be rendered as HTML: {formatted}"
+        );
+
+        receiver_client.logout().await.ok();
+    }
+
+    #[serial_test::serial]
+    #[tokio::test]
     async fn test_receiver_listens_and_receives_verified_message() {
         let _ = env_logger::try_init();
         let ctx = get_shared_context().await;
@@ -387,6 +452,7 @@ mod tests {
             let mut guard = state.write().await;
             guard.message_received = false;
             guard.message_body = None;
+            guard.message_formatted_body = None;
         }
 
         // Second send — must reuse the existing DM room
