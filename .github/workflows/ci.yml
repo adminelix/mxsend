@@ -139,7 +139,7 @@ jobs:
       - uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --strip header --tag ${{ github.ref_name }}
+          args: --latest --strip header --tag ${{ github.ref_name }}
         env:
           OUTPUT: RELEASE_NOTES.md
           GITHUB_REPO: ${{ github.repository }}
