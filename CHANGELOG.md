@@ -1,4 +1,20 @@
 # Changelog
+## [v0.1.1] - 2026-05-08
+
+### Bug Fixes
+- prevent custom room from being mistaken for DM room
+- collapse nested if in test to satisfy clippy
+
+<details>
+<summary>Other</summary>
+
+### CI
+- fix git-cliff crash on pre-release tags by using explicit --tag flag
+
+### Documentation
+- reference Mitchell Hashimoto's gist on merge strategy
+</details>
+
 ## [v0.1.0] - 2026-05-07
 
 ### Features
@@ -62,6 +78,7 @@
 - bump version to 0.1.0-beta.1
 - bump version to 0.1.0-beta.2
 - add release process documentation and tooling
+- prepare v0.1.0
 
 ### Documentation
 - add README
