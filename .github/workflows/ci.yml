@@ -149,4 +149,3 @@ jobs:
           files: releases/*
           body_path: RELEASE_NOTES.md
           prerelease: true
-          update_release: true
