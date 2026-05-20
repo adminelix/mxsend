@@ -94,25 +94,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - name: Install cross-compilers
-        if: runner.os == 'Linux'
+      - uses: mlugg/setup-zig@v2
+        if: contains(matrix.target, 'linux-musl')
+        with:
+          version: 0.15.2
+      - uses: taiki-e/install-action@v2
+        if: contains(matrix.target, 'linux-musl')
+        with:
+          tool: cargo-zigbuild
+      - name: Install cross-compilers (Windows)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
         run: |
-          sudo apt-get update
-          if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-musl" ]]; then
-            wget -q https://musl.cc/x86_64-linux-musl-cross.tgz -O /tmp/musl-cross.tgz
-            tar -xzf /tmp/musl-cross.tgz -C /tmp
-            echo "/tmp/x86_64-linux-musl-cross/bin" >> $GITHUB_PATH
-            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=x86_64-linux-musl-gcc" >> $GITHUB_ENV
-          elif [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
-            wget -q https://musl.cc/aarch64-linux-musl-cross.tgz -O /tmp/musl-cross.tgz
-            tar -xzf /tmp/musl-cross.tgz -C /tmp
-            echo "/tmp/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc" >> $GITHUB_ENV
-          elif [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]; then
-            sudo apt-get install -y mingw-w64
-            echo "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
-          fi
+          sudo apt-get install -y mingw-w64
+          echo "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
+      - name: Build release binary (musl)
+        if: contains(matrix.target, 'linux-musl')
+        run: cargo zigbuild --release --target ${{ matrix.target }}
       - name: Build release binary
+        if: "!contains(matrix.target, 'linux-musl')"
         run: cargo build --release --target ${{ matrix.target }}
       - name: Package release artifact
         shell: bash
