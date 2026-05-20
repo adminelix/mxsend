@@ -1,0 +1,25 @@
+name: Security Audit
+description: Run cargo audit and cargo deny
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: 1.93.1
+    - name: Cache security tools
+      id: cache-security
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cargo/bin/cargo-audit*
+          ~/.cargo/bin/cargo-deny*
+        key: ${{ runner.os }}-cargo-security-${{ hashFiles('**/Cargo.lock') }}
+    - name: Install security tools
+      if: steps.cache-security.outputs.cache-hit != 'true'
+      run: cargo install cargo-audit cargo-deny
+      shell: bash
+    - run: cargo audit
+      shell: bash
+    - run: cargo deny check
+      shell: bash
