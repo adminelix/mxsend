@@ -1,5 +1,6 @@
 [toolchain]
-# Pin to 1.93.1 to work around matrix-sdk 0.16 query depth overflow on Rust 1.94+
+# Pin to 1.93.1 — needed to work around matrix-sdk 0.16 query depth overflow on Rust 1.94+
+# Kept as-is for 0.17; the linked issue was for 0.16 and may be resolved upstream.
 # Upstream: https://github.com/matrix-org/matrix-rust-sdk/issues/6254
 # Rust regression: https://github.com/rust-lang/rust/issues/152942
 channel = "1.93.1"
