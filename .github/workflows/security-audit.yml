@@ -1,0 +1,29 @@
+name: Security Audit
+
+on:
+  workflow_call:
+  schedule:
+    - cron: "13 3 * * 0"
+  workflow_dispatch:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.93.1
+      - name: Cache security tools
+        id: cache-security
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/cargo-audit*
+            ~/.cargo/bin/cargo-deny*
+          key: ${{ runner.os }}-cargo-security-${{ hashFiles('Cargo.lock') }}
+      - name: Install security tools
+        if: steps.cache-security.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit cargo-deny
+      - run: cargo audit
+      - run: cargo deny check
