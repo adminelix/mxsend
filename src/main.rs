@@ -40,6 +40,10 @@ struct Cli {
     #[arg(long = "plain")]
     plain: bool,
 
+    /// Disable TLS certificate verification (use only for testing with self-signed certificates)
+    #[arg(long = "no-tls-verify", alias = "insecure")]
+    no_tls_verify: bool,
+
     /// message body (Markdown by default) to send. If omitted, the message is read from stdin (e.g. via pipe)
     message: Option<String>,
 }
@@ -60,6 +64,7 @@ impl Cli {
             recovery_key: self.recovery_key,
             verbosity: self.verbosity,
             message,
+            no_tls_verify: self.no_tls_verify,
         }
     }
 }
@@ -195,6 +200,7 @@ mod tests {
             verbosity: Default::default(),
             message: Some("test message".into()),
             plain: false,
+            no_tls_verify: false,
         };
         let opts = cli.into_send_options();
         assert_eq!(opts.message, "test message");
@@ -231,5 +237,68 @@ mod tests {
             "hello",
         ]);
         assert!(cli.plain);
+    }
+
+    #[test]
+    fn test_cli_no_tls_verify_flag_defaults_to_false() {
+        let cli = Cli::parse_from([
+            "mxsend",
+            "--from",
+            "@u:localhost",
+            "--password",
+            "pass",
+            "--to",
+            "@r:localhost",
+            "hello",
+        ]);
+        assert!(!cli.no_tls_verify);
+    }
+
+    #[test]
+    fn test_cli_no_tls_verify_flag_can_be_set() {
+        let cli = Cli::parse_from([
+            "mxsend",
+            "--from",
+            "@u:localhost",
+            "--password",
+            "pass",
+            "--to",
+            "@r:localhost",
+            "--no-tls-verify",
+            "hello",
+        ]);
+        assert!(cli.no_tls_verify);
+    }
+
+    #[test]
+    fn test_cli_insecure_alias() {
+        let cli = Cli::parse_from([
+            "mxsend",
+            "--from",
+            "@u:localhost",
+            "--password",
+            "pass",
+            "--to",
+            "@r:localhost",
+            "--insecure",
+            "hello",
+        ]);
+        assert!(cli.no_tls_verify);
+    }
+
+    #[test]
+    fn test_into_send_options_passes_no_tls_verify() {
+        let cli = Cli {
+            from: "@u:localhost".try_into().unwrap(),
+            password: "pass".into(),
+            to: Recipient::User("@r:localhost".try_into().unwrap()),
+            recovery_key: None,
+            verbosity: Default::default(),
+            message: Some("test message".into()),
+            plain: false,
+            no_tls_verify: true,
+        };
+        let opts = cli.into_send_options();
+        assert!(opts.no_tls_verify);
     }
 }

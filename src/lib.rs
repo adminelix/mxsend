@@ -50,6 +50,7 @@ pub struct SendOptions {
     pub recovery_key: Option<String>,
     pub verbosity: Verbosity,
     pub message: String,
+    pub no_tls_verify: bool,
 }
 
 /// Operation was interrupted by a signal (Ctrl-C / SIGTERM).
@@ -89,6 +90,7 @@ pub struct MessageSender {
     recovery_key: Option<String>,
     homeserver_url: Option<String>,
     plain: bool,
+    no_tls_verify: bool,
 }
 
 impl MessageSender {
@@ -102,6 +104,7 @@ impl MessageSender {
             recovery_key: opts.recovery_key,
             homeserver_url: None,
             plain: false,
+            no_tls_verify: opts.no_tls_verify,
         }
     }
 
@@ -119,7 +122,12 @@ impl MessageSender {
 
     /// Build a Client and log in, if not already authenticated.
     pub async fn build_client_and_login(&self) -> Result<Client> {
-        let client = build_client(&self.from, self.homeserver_url.as_deref()).await?;
+        let client = build_client(
+            &self.from,
+            self.homeserver_url.as_deref(),
+            self.no_tls_verify,
+        )
+        .await?;
         if client.session_meta().is_none() {
             login(&client, &self.from, &self.password).await?;
         }
@@ -150,13 +158,14 @@ impl MessageSender {
     /// When `shutdown` resolves before the send completes, the client is logged out
     /// and an `"interrupted"` error is returned.
     pub async fn send_internal(self, shutdown: impl Future<Output = ()>) -> Result<()> {
-        let (from, password, homeserver_url) = (
+        let (from, password, homeserver_url, no_tls_verify) = (
             self.from.clone(),
             self.password.clone(),
             self.homeserver_url.clone(),
+            self.no_tls_verify,
         );
 
-        let client = build_client(&from, homeserver_url.as_deref()).await?;
+        let client = build_client(&from, homeserver_url.as_deref(), no_tls_verify).await?;
         if client.session_meta().is_none() {
             login(&client, &from, &password).await?;
         }
@@ -201,8 +210,19 @@ async fn shutdown_signal() {
 ///
 /// When `homeserver_url` is `None`, the homeserver is discovered from the
 /// user's server name via the Matrix well-known protocol.
-pub async fn build_client(from: &UserId, homeserver_url: Option<&str>) -> Result<Client> {
+///
+/// When `no_tls_verify` is `true`, TLS certificate verification is disabled
+/// (use only for testing with self-signed certificates).
+pub async fn build_client(
+    from: &UserId,
+    homeserver_url: Option<&str>,
+    no_tls_verify: bool,
+) -> Result<Client> {
     let mut builder = Client::builder();
+
+    if no_tls_verify {
+        builder = builder.disable_ssl_verification();
+    }
 
     builder = if let Some(url) = homeserver_url {
         builder.homeserver_url(url)

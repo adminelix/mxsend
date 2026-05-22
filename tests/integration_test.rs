@@ -38,7 +38,7 @@ mod tests {
     async fn create_test_user(ctx: &TestContext, name: &str) -> (String, matrix_sdk::Client) {
         let user_id_str = ctx.add_user(name, DEFAULT_PASSWORD, true).await;
         let user_id = UserId::parse(&user_id_str).expect("valid user id");
-        let client = mxsend::build_client(&user_id, Some(&ctx.homeserver_url()))
+        let client = mxsend::build_client(&user_id, Some(&ctx.homeserver_url()), false)
             .await
             .expect("Failed to build client");
         (user_id_str, client)
@@ -186,6 +186,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Integration test message".to_string(),
         };
@@ -220,6 +221,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Test message from sender to receiver".to_string(),
         };
@@ -284,6 +286,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: markdown_msg.to_string(),
         };
@@ -362,6 +365,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: Some(recovery_key),
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Verified test message".to_string(),
         };
@@ -436,6 +440,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id.clone()),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "First message".to_string(),
         };
@@ -462,6 +467,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Second message".to_string(),
         };
@@ -527,6 +533,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id.clone()),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Message in first room".to_string(),
         };
@@ -561,6 +568,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Message in second room".to_string(),
         };
@@ -649,6 +657,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::Room(room_id.clone()),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Message to public room by ID".to_string(),
         };
@@ -700,6 +709,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should be interrupted".to_string(),
         };
@@ -763,6 +773,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(nonexistent_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -796,6 +807,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::Room(nonexistent_room_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -829,6 +841,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -862,6 +875,7 @@ mod tests {
             password: "wrong_password".to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -895,6 +909,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: Some("this_is_not_a_real_recovery_key".to_string()),
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -931,6 +946,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: Some(bad_key),
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -963,6 +979,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -995,6 +1012,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(recipient_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "Should not be sent".to_string(),
         };
@@ -1027,7 +1045,7 @@ mod tests {
         let receiver_id = UserId::parse(&receiver_id_str).expect("valid user id");
 
         // Login sender manually to create a custom room
-        let sender_client = mxsend::build_client(&sender_id, Some(&ctx.homeserver_url()))
+        let sender_client = mxsend::build_client(&sender_id, Some(&ctx.homeserver_url()), false)
             .await
             .expect("Failed to build sender client");
         login(&sender_client, &sender_id_str, DEFAULT_PASSWORD).await;
@@ -1084,6 +1102,7 @@ mod tests {
             password: DEFAULT_PASSWORD.to_string(),
             to: Recipient::User(receiver_id),
             recovery_key: None,
+            no_tls_verify: false,
             verbosity: Default::default(),
             message: "DM message to recipient".to_string(),
         };
