@@ -113,6 +113,21 @@ mxsend \
   "Sensitive alert: unauthorized access detected."
 ```
 
+### Disable TLS verification
+
+For development or testing against homeservers with self-signed certificates, use `--no-tls-verify` (or the `--insecure` alias):
+
+```bash
+mxsend \
+  -f "@bot:example.com" \
+  -p "s3cr3t" \
+  -t "@admin:example.com" \
+  --no-tls-verify \
+  "Test message to local dev server"
+```
+
+**Warning:** This disables certificate chain validation, making the connection vulnerable to man-in-the-middle attacks. Only use this in trusted network environments or during development.
+
 ### Markdown formatting
 
 Messages are rendered as Markdown by default. Bold, italic, inline code, links, and lists will be formatted in supporting Matrix clients:
