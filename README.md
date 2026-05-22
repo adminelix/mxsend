@@ -57,12 +57,12 @@ Download the pre-built binary directly from GitHub:
 ```bash
 # x86_64 (Intel/AMD)
 sudo curl -L -o /usr/local/bin/mxsend \
-  https://github.com/adminelix/mxsend/releases/latest/download/mxsend-x86_64-unknown-linux-gnu
+  https://github.com/adminelix/mxsend/releases/latest/download/mxsend-x86_64-unknown-linux-musl
 sudo chmod +x /usr/local/bin/mxsend
 
 # aarch64 (ARM64)
 sudo curl -L -o /usr/local/bin/mxsend \
-  https://github.com/adminelix/mxsend/releases/latest/download/mxsend-aarch64-unknown-linux-gnu
+  https://github.com/adminelix/mxsend/releases/latest/download/mxsend-aarch64-unknown-linux-musl
 sudo chmod +x /usr/local/bin/mxsend
 ```
 
