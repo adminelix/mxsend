@@ -1,4 +1,35 @@
 # Changelog
+## [v0.2.0] - 2026-06-05
+
+### Features
+- add --no-tls-verify flag for disabling TLS certificate verification
+
+### Bug Fixes
+- update download URLs from linux-gnu to linux-musl
+
+<details>
+<summary>Other</summary>
+
+### CI
+- remove unused update_release input from release step
+- switch Linux build targets from glibc to musl
+- install zig via setup-zig action for cargo-zigbuild
+- extract security audit into reusable scheduled workflow (#26)
+
+### Chores
+- bump actions/cache from 4 to 5
+- bump tokio from 1.52.1 to 1.52.3
+- bump matrix-sdk from 0.16.0 to 0.16.1
+- update all transitive deps via cargo update
+- simplify version specs to major.minor format
+- bump matrix-sdk from 0.16 to 0.17
+- bump version to 0.1.2-beta.0
+- bump serde_json from 1.0.149 to 1.0.150
+- bump reqwest from 0.13.3 to 0.13.4
+- bump http from 1.4.0 to 1.4.1
+- bump serial_test from 3.4.0 to 3.5.0
+</details>
+
 ## [v0.1.1] - 2026-05-08
 
 ### Bug Fixes
@@ -10,6 +41,10 @@
 
 ### CI
 - fix git-cliff crash on pre-release tags by using explicit --tag flag
+- use --latest flag to output only current version in release notes
+
+### Chores
+- prepare v0.1.1
 
 ### Documentation
 - reference Mitchell Hashimoto's gist on merge strategy
