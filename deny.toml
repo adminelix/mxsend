@@ -4,7 +4,21 @@ all-features = true
 [advisories]
 version = 2
 yanked = "warn"
-ignore = []
+ignore = [
+    # RUSTSEC-2026-0173: proc-macro-error2 is unmaintained.
+    # Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0173.html
+    # Upstream issue: https://github.com/matrix-org/matrix-rust-sdk/issues/6654
+    #
+    # Two dependency paths pull it in:
+    #   1. matrix-sdk / matrix-sdk-crypto → aquamarine v0.6.0 (latest)
+    #   2. vodozemac v0.10.0 (latest) → matrix-pickle → matrix-pickle-derive v0.2.2
+    #
+    # Both aquamarine and vodozemac/matrix-pickle-derive need to either drop or
+    # replace proc-macro-error2 (e.g. with proc-macro-error3). Until then this
+    # advisory cannot be resolved upstream. Revisit on matrix-sdk or vodozemac
+    # bump.
+    "RUSTSEC-2026-0173",
+]
 
 [licenses]
 version = 2
