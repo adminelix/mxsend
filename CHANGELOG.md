@@ -1,4 +1,24 @@
 # Changelog
+## [v0.2.1] - 2026-07-24
+
+### Bug Fixes
+- resolve cargo audit failures
+- remove redundant borrows in format! args
+
+<details>
+<summary>Other</summary>
+
+### Chores
+- bump actions/checkout from 6 to 7
+- bump matrix-sdk from 0.17.0 to 0.18.0
+- upgrade Rust toolchain from 1.93.1 to 1.97.1
+- bump anyhow from 1.0.103 to 1.0.104
+- bump tokio from 1.52.3 to 1.53.1
+- bump serde from 1.0.228 to 1.0.229
+- bump clap from 4.6.1 to 4.6.4
+- bump serde_json from 1.0.150 to 1.0.151
+</details>
+
 ## [v0.2.0] - 2026-06-05
 
 ### Features
@@ -28,6 +48,7 @@
 - bump reqwest from 0.13.3 to 0.13.4
 - bump http from 1.4.0 to 1.4.1
 - bump serial_test from 3.4.0 to 3.5.0
+- prepare v0.2.0
 </details>
 
 ## [v0.1.1] - 2026-05-08
