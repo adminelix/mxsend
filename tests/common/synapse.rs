@@ -98,7 +98,7 @@ impl Image for SynapseImage {
     ) -> testcontainers::core::error::Result<Vec<ExecCommand>> {
         let register = format!(
             "register_new_matrix_user http://localhost:8008 -c /data/homeserver.yaml -u {} -p {} --admin",
-            &self.admin_user, &self.admin_pass
+            self.admin_user, self.admin_pass
         );
         let loop_cmd = format!("until {register}; do sleep 0.5; done");
         let cmd = ExecCommand::new(["/bin/bash", "-c", loop_cmd.as_str()]);
