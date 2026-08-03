@@ -81,7 +81,7 @@ jobs:
         if: contains(matrix.target, 'linux-musl')
         with:
           version: 0.15.2
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.5
         if: contains(matrix.target, 'linux-musl')
         with:
           tool: cargo-zigbuild
