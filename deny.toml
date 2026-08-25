@@ -18,6 +18,16 @@ ignore = [
     # advisory cannot be resolved upstream. Revisit on matrix-sdk or vodozemac
     # bump.
     "RUSTSEC-2026-0173",
+    # RUSTSEC-2026-0247: bitmaps is unmaintained (repository archived 2026-05-03).
+    # Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0247.html
+    #
+    # Dependency path:
+    #   matrix-sdk v0.18.0 (latest) -> imbl v6.1.0 -> bitmaps v3.2.1
+    #
+    # No upstream fix: imbl depends on bitmaps in both v6 and v7, and the
+    # bitmaps repository is archived. Revisit if imbl replaces bitmaps
+    # (e.g. with fixedbitset) or matrix-sdk drops the imbl dependency.
+    "RUSTSEC-2026-0247",
 ]
 
 [licenses]
