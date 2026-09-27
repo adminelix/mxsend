@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: 2026 mxsend contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![recursion_limit = "256"]
-
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
+use std::pin::Pin;
 use std::str::FromStr;
 
 use anyhow::Context;
@@ -75,7 +74,6 @@ impl Error for Interrupted {}
 /// # Example
 ///
 /// ```no_run
-/// #![recursion_limit = "256"]
 /// # use mxsend::{SendOptions, MessageSender};
 /// # async fn example(opts: SendOptions) -> anyhow::Result<()> {
 /// MessageSender::new(opts)
@@ -289,17 +287,19 @@ fn build_message_content(message: &str, plain: bool) -> RoomMessageEventContent 
     }
 }
 
-async fn send_to_recipient(
-    client: &Client,
-    message: &str,
-    recipient: &Recipient,
+fn send_to_recipient<'a>(
+    client: &'a Client,
+    message: &'a str,
+    recipient: &'a Recipient,
     plain: bool,
-) -> Result<()> {
-    let room = resolve_room(client, recipient).await?;
-    let content = build_message_content(message, plain);
-    room.send(content).await?;
-    info!("Message sent successfully!");
-    Ok(())
+) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+    Box::pin(async move {
+        let room = resolve_room(client, recipient).await?;
+        let content = build_message_content(message, plain);
+        room.send(content).await?;
+        info!("Message sent successfully!");
+        Ok(())
+    })
 }
 
 async fn login(client: &Client, from: &OwnedUserId, password: &str) -> Result<()> {
