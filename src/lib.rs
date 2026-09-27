@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 mxsend contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![recursion_limit = "256"]
+
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
@@ -73,6 +75,7 @@ impl Error for Interrupted {}
 /// # Example
 ///
 /// ```no_run
+/// #![recursion_limit = "256"]
 /// # use mxsend::{SendOptions, MessageSender};
 /// # async fn example(opts: SendOptions) -> anyhow::Result<()> {
 /// MessageSender::new(opts)

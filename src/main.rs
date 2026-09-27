@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 mxsend contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![recursion_limit = "256"]
+
 use std::io::{IsTerminal, Read};
 
 use clap::Parser;
