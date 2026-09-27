@@ -1,4 +1,31 @@
 # Changelog
+## [v0.2.2] - 2026-09-27
+
+### Bug Fixes
+- resolve cargo audit and cargo deny failures
+- resolve cargo audit vulnerabilities
+
+<details>
+<summary>Other</summary>
+
+### Chores
+- bump serial_test from 3.5.0 to 4.0.1
+- bump taiki-e/install-action from 2 to 2.85.5
+- bump http from 1.4.2 to 1.5.0
+- bump testcontainers from 0.27.3 to 0.28.0
+- bump clap from 4.6.4 to 4.6.6
+- bump taiki-e/install-action from 2.85.5 to 2.86.7
+- bump taiki-e/install-action from 2.86.7 to 2.87.5
+- bump reqwest from 0.13.4 to 0.13.5
+- bump taiki-e/install-action from 2.87.5 to 2.87.11
+- bump clap from 4.6.6 to 4.6.7
+- bump taiki-e/install-action from 2.87.11 to 2.87.20
+
+### Refactor
+- box send_to_recipient future instead of raising recursion limit
+- move future box to resolve_room and drop send_to_recipient wrapper
+</details>
+
 ## [v0.2.1] - 2026-07-24
 
 ### Bug Fixes
@@ -17,6 +44,7 @@
 - bump serde from 1.0.228 to 1.0.229
 - bump clap from 4.6.1 to 4.6.4
 - bump serde_json from 1.0.150 to 1.0.151
+- prepare v0.2.1
 </details>
 
 ## [v0.2.0] - 2026-06-05
