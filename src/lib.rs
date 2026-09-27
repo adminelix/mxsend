@@ -145,7 +145,14 @@ impl MessageSender {
             verify_session(client, recovery_key).await?;
         }
 
-        let result = send_to_recipient(client, &self.message, &self.to, self.plain).await;
+        let result: Result<()> = async {
+            let room = resolve_room(client, &self.to).await?;
+            let content = build_message_content(&self.message, self.plain);
+            room.send(content).await?;
+            info!("Message sent successfully!");
+            Ok(())
+        }
+        .await;
 
         client.logout().await?;
         info!("Matrix auth logged out successfully");
@@ -248,35 +255,40 @@ pub async fn build_client(
 ///
 /// For user IDs, scans joined rooms for an existing DM or creates a new one.
 /// For room IDs, joins the room if the sender is not already a member.
-async fn resolve_room(client: &Client, recipient: &Recipient) -> Result<Room> {
-    match recipient {
-        Recipient::User(user_id) => resolve_dm_room(client, user_id).await,
-        Recipient::Room(room_id) => {
-            if let Some(room) = client.get_room(room_id) {
-                if room.state() == RoomState::Joined {
-                    Ok(room)
+fn resolve_room<'a>(
+    client: &'a Client,
+    recipient: &'a Recipient,
+) -> Pin<Box<dyn Future<Output = Result<Room>> + Send + 'a>> {
+    Box::pin(async move {
+        match recipient {
+            Recipient::User(user_id) => resolve_dm_room(client, user_id).await,
+            Recipient::Room(room_id) => {
+                if let Some(room) = client.get_room(room_id) {
+                    if room.state() == RoomState::Joined {
+                        Ok(room)
+                    } else {
+                        room.join().await?;
+                        client
+                            .get_room(room_id)
+                            .ok_or_else(|| anyhow::anyhow!("room {room_id} not found after join"))
+                    }
                 } else {
-                    room.join().await?;
-                    client
-                        .get_room(room_id)
-                        .ok_or_else(|| anyhow::anyhow!("room {room_id} not found after join"))
-                }
-            } else {
-                match client.join_room_by_id(room_id).await {
-                    Ok(room) => Ok(room),
-                    Err(err) => {
-                        if err
-                            .as_client_api_error()
-                            .is_some_and(|e| e.status_code == http::StatusCode::NOT_FOUND)
-                        {
-                            anyhow::bail!("room {room_id} does not exist on the server");
+                    match client.join_room_by_id(room_id).await {
+                        Ok(room) => Ok(room),
+                        Err(err) => {
+                            if err
+                                .as_client_api_error()
+                                .is_some_and(|e| e.status_code == http::StatusCode::NOT_FOUND)
+                            {
+                                anyhow::bail!("room {room_id} does not exist on the server");
+                            }
+                            anyhow::bail!("failed to join room {room_id}: {err}");
                         }
-                        anyhow::bail!("failed to join room {room_id}: {err}");
                     }
                 }
             }
         }
-    }
+    })
 }
 
 fn build_message_content(message: &str, plain: bool) -> RoomMessageEventContent {
@@ -285,21 +297,6 @@ fn build_message_content(message: &str, plain: bool) -> RoomMessageEventContent 
     } else {
         RoomMessageEventContent::text_markdown(message)
     }
-}
-
-fn send_to_recipient<'a>(
-    client: &'a Client,
-    message: &'a str,
-    recipient: &'a Recipient,
-    plain: bool,
-) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
-    Box::pin(async move {
-        let room = resolve_room(client, recipient).await?;
-        let content = build_message_content(message, plain);
-        room.send(content).await?;
-        info!("Message sent successfully!");
-        Ok(())
-    })
 }
 
 async fn login(client: &Client, from: &OwnedUserId, password: &str) -> Result<()> {
