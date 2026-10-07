@@ -4,6 +4,13 @@ all-features = true
 [advisories]
 version = 2
 yanked = "warn"
+# Unmaintained advisories are informational, not vulnerabilities, and cargo-deny
+# has no warn level for them: the scope selects which crates fail the check.
+# Dependencies are dictated by matrix-sdk, so we cannot act on their advisories
+# (e.g. RUSTSEC-2026-0319 for anymap2, still required by matrix-sdk 0.19.1 with
+# no patched release). Only fail for our own crates; cargo audit, which runs in
+# the same job, still reports unmaintained dependencies as warnings.
+unmaintained = "workspace"
 
 [licenses]
 version = 2
