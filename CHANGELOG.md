@@ -1,4 +1,25 @@
 # Changelog
+## [v0.2.3] - 2026-10-25
+
+### Bug Fixes
+- limit cargo-deny unmaintained check to workspace crates
+- update quinn-proto and rustls to patch security vulnerabilities
+- update ctutils, rustls-webpki, webpki roots and tokio to patch security advisories
+
+<details>
+<summary>Other</summary>
+
+### Chores
+- sync Cargo.lock with v0.2.2 version
+- update yanked chacha20 to 0.10.2
+- bump taiki-e/install-action from 2.87.20 to 2.87.24
+- bump tokio from 1.53.1 to 1.53.2
+- bump taiki-e/install-action from 2.87.24 to 2.87.28
+- bump taiki-e/install-action from 2.87.28 to 2.87.29
+- bump serde_json from 1.0.151 to 1.0.154
+- bump tokio from 1.53.2 to 1.53.3
+</details>
+
 ## [v0.2.2] - 2026-09-27
 
 ### Bug Fixes
@@ -21,6 +42,7 @@
 - bump taiki-e/install-action from 2.87.5 to 2.87.11
 - bump clap from 4.6.6 to 4.6.7
 - bump taiki-e/install-action from 2.87.11 to 2.87.20
+- prepare v0.2.2
 
 ### Refactor
 - box send_to_recipient future instead of raising recursion limit
