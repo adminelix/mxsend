@@ -1,0 +1,11 @@
+# cargo-audit does not read deny.toml; its own config is ./.cargo/audit.toml, then
+# ~/.cargo/audit.toml. So the advisories accepted in deny.toml have to be listed here
+# as well - keep this list in sync with [advisories] ignore in deny.toml.
+#
+# RUSTSEC-2026-0459 is accepted only because it is unreachable, not because it is
+# fixed: libsqlite3-sys 0.39+ cannot be resolved while matrix-sdk-sqlite 0.19.1 pins
+# rusqlite 0.40.2. Upstream https://github.com/matrix-org/matrix-rust-sdk/issues/7456
+# was merged as https://github.com/matrix-org/matrix-rust-sdk/pull/7457 but is not
+# released yet; remove both entries once a published matrix-sdk allows rusqlite >= 0.41.
+[advisories]
+ignore = ["RUSTSEC-2026-0459"]

@@ -8,9 +8,22 @@ yanked = "warn"
 # has no warn level for them: the scope selects which crates fail the check.
 # Dependencies are dictated by matrix-sdk, so we cannot act on their advisories
 # (e.g. RUSTSEC-2026-0319 for anymap2, still required by matrix-sdk 0.19.1 with
-# no patched release). Only fail for our own crates; cargo audit, which runs in
-# the same job, still reports unmaintained dependencies as warnings.
+# no patched release). Only fail for our own crates; cargo audit, which does not read
+# this file, reports them as warnings by default.
 unmaintained = "workspace"
+# RUSTSEC-2026-0459 needs libsqlite3-sys >= 0.39.0 (bundled SQLite 3.54), but that
+# version is unreachable from our lock file: rusqlite 0.40.2 requires ^0.38.2 and
+# matrix-sdk-sqlite 0.19.1 pins rusqlite ^0.40.2. The exposure is real (we build with
+# bundled-sqlite), so this documents an accepted risk we cannot act on yet.
+# Upstream: https://github.com/matrix-org/matrix-rust-sdk/issues/7456 was fixed on main
+# by https://github.com/matrix-org/matrix-rust-sdk/pull/7457 (rusqlite 0.41), but the
+# newest published release is still 0.19.1; rusqlite asks for a 0.38 backport at
+# https://github.com/rusqlite/rusqlite/issues/1947. Drop this entry as soon as a
+# published matrix-sdk allows rusqlite >= 0.41, then cargo update clears the advisory.
+# cargo-audit does not read this file, so the same id is listed in .cargo/audit.toml.
+ignore = [
+    { id = "RUSTSEC-2026-0459", reason = "unreachable until matrix-sdk releases rusqlite 0.41 (matrix-rust-sdk#7456)" },
+]
 
 [licenses]
 version = 2
